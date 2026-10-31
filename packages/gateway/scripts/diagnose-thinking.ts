@@ -10,6 +10,7 @@ const variants: { name: string; system: string; extra: Record<string, unknown> }
   { name: "A 現在の設定 (/no_think)", system: "短く答えてください。\n\n/no_think", extra: {} },
   { name: "B /no_think + reasoning_effort:none", system: "短く答えてください。\n\n/no_think", extra: { reasoning_effort: "none" } },
   { name: "C 指定なし(思考の量を見る基準)", system: "短く答えてください。", extra: {} },
+  { name: "D reasoning_effort:none のみ(/no_think なし)", system: "短く答えてください。", extra: { reasoning_effort: "none" } },
 ];
 
 async function run(system: string, extra: Record<string, unknown>) {

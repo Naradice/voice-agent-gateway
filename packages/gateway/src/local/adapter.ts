@@ -13,9 +13,11 @@ export interface LocalLLMAdapterOptions extends ConversationOptions {
   /** 追加の生成パラメータ(temperature 等)をそのまま本文に加える */
   extraBody?: Record<string, unknown>;
   /**
-   * 推論モデル(Qwen3 など)の思考を抑える。既定 true。
-   * システム指示の末尾に /no_think を足し(Qwen3 のソフトスイッチ)、本文に出た <think>…</think> は必ず除去する。
-   * delta.reasoning 等の別フィールドは読まない。思考は読み上げの遅延と誤読の原因になる。
+   * 推論モデル(Qwen3 など)の思考を止める。既定 true。
+   * 実測(Ollama /v1, qwen3:14b): reasoning_effort:"none" で思考が完全に止まる(446→10トークン)。
+   * システム指示の /no_think だけでは止まらなかった(併用しているが、単独では効果なし)。
+   * 思考を持たないモデルでは reasoning_effort が拒否される可能性があるため、その場合は false にする。
+   * 本文に出た <think>…</think> は常に除去し、delta.reasoning 等の別フィールドは読まない。
    */
   suppressThinking?: boolean;
   /** 指定すると prepare() でモデルを先読みする。常駐させず、使うときだけ読み込むために使う */
@@ -71,7 +73,8 @@ export class LocalLLMAdapter extends ConversationAdapter {
       messages: [...(system ? [{ role: "system", content: system }] : []), ...history],
       stream: true,
       stream_options: { include_usage: true },
-      ...this.o.extraBody,
+      ...(this.o.suppressThinking === false ? {} : { reasoning_effort: "none" }),
+      ...this.o.extraBody, // 上書き可
     };
   }
 

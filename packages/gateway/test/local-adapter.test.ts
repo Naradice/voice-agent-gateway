@@ -42,6 +42,7 @@ test("streams chat-completions deltas to Ollama's default endpoint, with no auth
   assert.equal(calls[0].headers.authorization, undefined);
   assert.deepEqual(calls[0].body.messages, [{ role: "system", content: "be brief\n\n/no_think" }, { role: "user", content: "やあ" }]);
   assert.equal(calls[0].body.stream, true);
+  assert.equal(calls[0].body.reasoning_effort, "none");
   assert.deepEqual(store.messages(s.id).map((m) => m.text), ["やあ", "こんにちは"]);
   assert.deepEqual(store.usageTotals(), { inputTokens: 20, outputTokens: 4, requests: 1 });
   assert.equal((await adapter.listSessions())[0].agentId, "chat");
@@ -119,6 +120,16 @@ test("reasoning in a separate field is ignored; /no_think can be turned off", as
   const events = await done;
   assert.equal(events.filter((e) => e.type === "message.delta").map((e: any) => e.text).join(""), "答え");
   assert.ok(!calls[0].body.messages[0].content.includes("/no_think"));
+  assert.equal(calls[0].body.reasoning_effort, undefined);
+});
+
+test("extraBody can override the thinking setting", async () => {
+  const { adapter, calls } = setup(() => streamOf(chunks(["A"])), { extraBody: { reasoning_effort: "low" } });
+  const s = await adapter.createSession();
+  const done = untilCompleted(adapter, s.id);
+  await adapter.sendMessage(s.id, "q");
+  await done;
+  assert.equal(calls[0].body.reasoning_effort, "low");
 });
 
 test("grounding context goes into the system message for this turn only and is not stored", async () => {
