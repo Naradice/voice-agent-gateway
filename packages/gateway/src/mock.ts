@@ -12,7 +12,7 @@ import { RuleRouter } from "../../phase0b-router-eval/src/rule-router.ts";
 import type { AgentCapability } from "../../shared/src/types.ts";
 import { AgentError, type AgentAdapter, type AgentEvent, type AgentSession, type HistoryItem } from "./adapter.ts";
 import { checkHost, jsonLog, parseDevices } from "./config.ts";
-import { loadDotEnv, shadowedMessage } from "./env.ts";
+import { loadDotEnv, shadowedMessage, sourceOf } from "./env.ts";
 import { tokenFingerprint } from "./connection.ts";
 import { Gateway } from "./gateway.ts";
 import { AdapterRegistry } from "./registry.ts";
@@ -152,6 +152,7 @@ const devices = parseDevices(process.env.VAG_DEVICES);
 const server = await startServer({
   gateway,
   devices,
+  diagnostics: { tokenSource: sourceOf(dot, "VAG_DEVICES"), cwd: process.cwd() },
   host: checkHost(process.env.VAG_HOST ?? "127.0.0.1"),
   port: Number(process.env.VAG_PORT ?? 8787),
   log: jsonLog,

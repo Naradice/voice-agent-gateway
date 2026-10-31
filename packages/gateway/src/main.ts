@@ -69,7 +69,7 @@ const gateway = new Gateway({
 });
 
 const port = Number(env.VAG_PORT ?? 8787);
-const server = await startServer({ gateway, devices, host, port, log }).catch((e: NodeJS.ErrnoException) => {
+const server = await startServer({ gateway, devices, host, port, log, diagnostics: { tokenSource: sourceOf(dot, "VAG_DEVICES"), cwd: process.cwd() } }).catch((e: NodeJS.ErrnoException) => {
   if (e.code === "EADDRINUSE") {
     return fail(`${host}:${port} は他のプロセスが使用中です。古い Gateway が動いたままではありませんか。` +
       `\n  確認: netstat -ano | findstr :${port}   停止: taskkill /PID <PID> /F`);

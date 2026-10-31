@@ -10,7 +10,7 @@ import { FakeAdapter, StubRouter, session } from "./helpers.ts";
 
 const TOKEN = "t".repeat(32);
 
-async function boot(extra: { heartbeatMs?: number; helloTimeoutMs?: number; maxPayload?: number; log?: (level: "info" | "warn" | "error", msg: string, meta?: object) => void } = {}) {
+async function boot(extra: { heartbeatMs?: number; helloTimeoutMs?: number; maxPayload?: number; log?: (level: "info" | "warn" | "error", msg: string, meta?: object) => void; diagnostics?: Record<string, unknown> } = {}) {
   const store = new Store();
   const chat = new FakeAdapter("chat", ["list_sessions", "read_history", "send_message", "subscribe", "interrupt", "create_session"], [session("c1", "chat", "雑談")]);
   const registry = new AdapterRegistry();
@@ -243,6 +243,21 @@ test("a refused connection says exactly what is wrong with the token (truncated,
     for (const [token] of cases) await assert.rejects(connect(server.port, token).opened, /HTTP 401/);
     assert.equal(logs.length, cases.length);
     cases.forEach(([, re], i) => assert.match(logs[i].reason, re));
+  } finally {
+    await server.close();
+  }
+});
+
+test("the refusal log carries the diagnostics supplied by the process (where the expected token came from)", async () => {
+  const logs: any[] = [];
+  const { server } = await boot({
+    log: (_l, msg, meta) => { if (msg.startsWith("unauthorized")) logs.push(meta); },
+    diagnostics: { tokenSource: "environment variable (the value in .env is NOT used)", cwd: "C:\\work\\gateway" },
+  });
+  try {
+    await assert.rejects(connect(server.port, "x".repeat(40)).opened, /HTTP 401/);
+    assert.equal(logs[0].tokenSource, "environment variable (the value in .env is NOT used)");
+    assert.equal(logs[0].cwd, "C:\\work\\gateway");
   } finally {
     await server.close();
   }

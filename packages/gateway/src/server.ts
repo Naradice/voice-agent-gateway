@@ -21,6 +21,8 @@ export interface ServerOptions {
   /** 1メッセージの最大バイト数。既定 64KB */
   maxPayload?: number;
   log?: (level: "info" | "warn" | "error", msg: string, meta?: object) => void;
+  /** 認証失敗のログに添える、設定の出どころなどの情報(例: トークンが .env と環境変数のどちらから来たか) */
+  diagnostics?: Record<string, unknown>;
 }
 
 export interface RunningServer { port: number; close(): Promise<void> }
@@ -72,6 +74,7 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
       const diff = presented && closest ? compareTokens(presented, closest.token) : undefined;
       log("warn", "unauthorized connection attempt", {
         remote: req.socket.remoteAddress,
+        ...o.diagnostics,
         userAgent: req.headers["user-agent"],
         authorization: header === undefined ? "absent" : presented ? `Bearer + token of ${presented.length} characters` : `not a Bearer header (scheme: ${header.split(" ")[0].slice(0, 20)})`,
         presentedFingerprint: presented ? tokenFingerprint(presented) : null,
