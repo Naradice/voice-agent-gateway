@@ -5,7 +5,7 @@
 | モジュール | 内容 | 検証状況 |
 |---|---|---|
 | `android/core` | Android に依存しない Kotlin/JVM。プロトコル型、再接続する WebSocket クライアント、読み上げキューと ack 位置の管理、確認への回答の解釈、PTT から読み上げまでを統括する `VoiceController` | **ビルドとテスト済み(39件)**。うち7件は、本物の Gateway(`packages/gateway/src/mock.ts`)を子プロセスで起動して接続する結合テスト |
-| `android/app` | 画面(Compose)、フォアグラウンドサービス、`SpeechRecognizer`、`TextToSpeech`、設定の保存。`core` を呼ぶだけの薄い層 | **未ビルド・未実行。** 開発環境から Android SDK(Google の Maven)に届かず、一度もコンパイルしていない |
+| `android/app` | 画面(Compose)、フォアグラウンドサービス、`SpeechRecognizer`、`TextToSpeech`、設定の保存。`core` を呼ぶだけの薄い層 | 開発環境からは Android SDK に届かず、コンパイルは確認できない。**利用者の実機で、ビルド・起動・Tailscale 経由の接続・音声認識・応答の読み上げを確認済み(2026-10-31、画面を開いた状態)。** 画面ロック中・他アプリ使用中・イヤホン使用時は未確認 |
 
 ## core のテスト
 ```bash
