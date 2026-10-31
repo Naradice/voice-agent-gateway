@@ -5,6 +5,7 @@ import dev.vag.core.ConnectionState
 import dev.vag.core.GatewayClient
 import dev.vag.core.VoiceController
 import dev.vag.core.VoiceState
+import dev.vag.core.tokenFingerprint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -32,6 +33,10 @@ object VoiceRuntime {
     /** 直近の接続失敗の理由(画面表示用)。 */
     val lastError: StateFlow<String?> = _lastError
 
+    private val _activeFingerprint = MutableStateFlow<String?>(null)
+    /** いま接続に使っているトークンの確認コード(保存された値ではなく、実際に動いている接続のもの)。 */
+    val activeFingerprint: StateFlow<String?> = _activeFingerprint
+
     private val _status = MutableStateFlow("未接続")
     /** 通知に出す短い状態表示。 */
     val status: StateFlow<String> = _status
@@ -48,6 +53,7 @@ object VoiceRuntime {
             return
         }
         _lastError.value = null
+        _activeFingerprint.value = tokenFingerprint(token)
         val app = context.applicationContext
 
         val s = CoroutineScope(SupervisorJob() + Dispatchers.Main)
@@ -71,6 +77,7 @@ object VoiceRuntime {
         tts = null
         scope = null
         _controller.value = null
+        _activeFingerprint.value = null
         _connection.value = ConnectionState.DISCONNECTED
         _status.value = "停止中"
     }

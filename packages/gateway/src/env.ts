@@ -6,6 +6,8 @@ export interface DotEnvResult {
   path: string;
   /** .env に書かれているが、すでに設定されている環境変数の値が優先された(.env の値は使われない)キー */
   shadowed: string[];
+  /** .env に書かれているキー */
+  keys: string[];
 }
 
 /**
@@ -14,11 +16,18 @@ export interface DotEnvResult {
  * 秘密(トークンなど)を含むので .env はコミットしない(.gitignore 済み)。
  */
 export function loadDotEnv(path: string = process.env.VAG_ENV_FILE ?? ".env"): DotEnvResult {
-  if (!existsSync(path)) return { loaded: false, path, shadowed: [] };
+  if (!existsSync(path)) return { loaded: false, path, shadowed: [], keys: [] };
   const parsed = parseEnv(readFileSync(path, "utf8"));
   const shadowed = Object.keys(parsed).filter((k) => process.env[k] !== undefined && process.env[k] !== parsed[k]);
   process.loadEnvFile(path);
-  return { loaded: true, path, shadowed };
+  return { loaded: true, path, shadowed, keys: Object.keys(parsed) };
+}
+
+/** 設定 key の値が、どこから来たか(起動時の表示用)。 */
+export function sourceOf(r: DotEnvResult, key: string): string {
+  if (r.keys.includes(key) && !r.shadowed.includes(key)) return `.env file (${r.path})`;
+  if (r.shadowed.includes(key)) return `environment variable (the value in ${r.path} is NOT used)`;
+  return r.loaded ? "environment variable" : `environment variable (no .env file found; looked for ${r.path} in ${process.cwd()})`;
 }
 
 /** shadowed があるときの、利用者向けの説明。 */

@@ -13,7 +13,7 @@ import { dirname } from "node:path";
 import { RuleRouter } from "../../phase0b-router-eval/src/rule-router.ts";
 import { CodexAdapter } from "./codex/adapter.ts";
 import { checkHost, fail, jsonLog, parseDevices } from "./config.ts";
-import { loadDotEnv, shadowedMessage } from "./env.ts";
+import { loadDotEnv, shadowedMessage, sourceOf } from "./env.ts";
 import { tokenFingerprint } from "./connection.ts";
 import { Gateway } from "./gateway.ts";
 import { LocalLLMAdapter } from "./local/adapter.ts";
@@ -31,6 +31,10 @@ if (shadow) console.warn(`警告: ${shadow}`);
 const env = process.env;
 
 const devices = parseDevices(env.VAG_DEVICES);
+// Which token is this process really using, and where did it come from? Compare the fingerprint with the app's.
+for (const d of devices) {
+  console.log(`device ${d.deviceId}: token fingerprint ${tokenFingerprint(d.token)}  [from ${sourceOf(dot, "VAG_DEVICES")}]`);
+}
 const host = checkHost(env.VAG_HOST ?? "127.0.0.1");
 const log = jsonLog;
 
@@ -75,6 +79,7 @@ const server = await startServer({ gateway, devices, host, port, log }).catch((e
 log("info", "gateway started", {
   host, port: server.port, agents: registry.list().map((a) => a.agentType), search: provider?.name ?? "off",
   envFile: dot.loaded ? dot.path : null,
+  tokenSource: sourceOf(dot, "VAG_DEVICES"),
   // 確認コードは、アプリの設定画面に出るものと比べるための値(トークン本体ではない)
   devices: devices.map((d) => ({ deviceId: d.deviceId, tokenFingerprint: tokenFingerprint(d.token) })),
 });

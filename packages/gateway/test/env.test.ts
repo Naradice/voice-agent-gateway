@@ -4,7 +4,7 @@ import { mkdtempSync, writeFileSync, existsSync, readFileSync, statSync } from "
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parseEnv } from "node:util";
-import { loadDotEnv, shadowedMessage } from "../src/env.ts";
+import { loadDotEnv, shadowedMessage, sourceOf } from "../src/env.ts";
 import { compareTokens, connectionCode, tokenFingerprint } from "../src/connection.ts";
 import { buildEnvFile, newToken } from "../src/init.ts";
 
@@ -33,6 +33,10 @@ test("loadDotEnv reads a file, never overrides real environment variables, and t
     assert.equal(process.env.VAG_TEST_NEW, "from-file");
     assert.equal(process.env.VAG_TEST_EXISTING, "from-shell");
     assert.equal(process.env.VAG_TEST_JSON, '[{"a":"b"}]');
+    assert.match(sourceOf(r, "VAG_TEST_NEW"), /^\.env file/);
+    assert.match(sourceOf(r, "VAG_TEST_EXISTING"), /NOT used/);
+    assert.match(sourceOf(r, "VAG_TEST_ABSENT"), /^environment variable$/);
+    assert.match(sourceOf(loadDotEnv(join(dir, "missing.env")), "X"), /no \.env file found/);
     assert.equal(loadDotEnv(join(dir, "missing.env")).loaded, false);
     assert.equal(shadowedMessage(loadDotEnv(join(dir, "missing.env"))), undefined);
   } finally {

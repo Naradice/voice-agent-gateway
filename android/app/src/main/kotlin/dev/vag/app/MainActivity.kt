@@ -95,6 +95,7 @@ private fun MainScreen(onSaveSettings: (String, String?) -> Unit) {
     val controller by VoiceRuntime.controller.collectAsState()
     val status by VoiceRuntime.status.collectAsState()
     val lastError by VoiceRuntime.lastError.collectAsState()
+    val activeFingerprint by VoiceRuntime.activeFingerprint.collectAsState()
     val voiceState by remember(controller) { controller?.state ?: MutableStateFlow(VoiceState.DISCONNECTED) }.collectAsState()
     val heard by remember(controller) { controller?.heard ?: MutableStateFlow<String?>(null) }.collectAsState()
     val spoken by remember(controller) { controller?.spoken ?: MutableStateFlow<String?>(null) }.collectAsState()
@@ -114,7 +115,9 @@ private fun MainScreen(onSaveSettings: (String, String?) -> Unit) {
     Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(status, style = MaterialTheme.typography.titleMedium)
         settings.url?.let { Text("接続先: $it", style = MaterialTheme.typography.bodySmall) }
-        savedToken?.let { Text("トークン確認コード: ${tokenFingerprint(it)}", style = MaterialTheme.typography.bodySmall) }
+        savedToken?.let { Text("保存したトークンの確認コード: ${tokenFingerprint(it)}", style = MaterialTheme.typography.bodySmall) }
+        // 実際に接続で送っているトークン。保存した値と違えば、設定が反映されていない(再起動が必要)。
+        activeFingerprint?.let { Text("接続に使用中のトークンの確認コード: $it", style = MaterialTheme.typography.bodySmall) }
         hint?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         lastError?.let { Text("接続エラー: $it", color = MaterialTheme.colorScheme.error) }
         // 画面を見ずに使えるよう、ボタンは画面の大半を占める大きさにする

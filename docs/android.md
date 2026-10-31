@@ -45,6 +45,14 @@ Android SDK が無い環境では `:app` は自動的に除外される(`setting
 `http://<PCのTailscale IP>:8787` を開くと、「WebSocket required」の下に、答えているプロセスの `pid`・起動時刻・各デバイスの**トークン確認コード**が出る。アプリの確認コードと同じなら、そのプロセスは正しいトークンで動いている。**違えば、古い Gateway が動いたままか、別の設定で動いている。** Windows では `netstat -ano | findstr :8787` で待ち受けているプロセス(PID)を確認し、`taskkill /PID <PID> /F` で止める。待ち受けアドレスが違うと(`127.0.0.1` と Tailscale の IP)、複数の Gateway がエラーなく同時に動いてしまう。
 
 **認証に失敗するとき**(HTTP 401。経路は通っている)
+**比べる相手は、「アプリ」と「動いている Gateway」。** `npm run gateway:code` は `.env` を読むだけなので、動いている Gateway が同じ設定を使っている保証はない。
+- Gateway の起動時の表示: `device pixel: token fingerprint XXXXXX  [from …]` — 動いている Gateway が実際に使っているトークンの確認コードと、その出どころ(`.env file` / `environment variable`)。
+- アプリのメイン画面: 「保存したトークンの確認コード」と「**接続に使用中**のトークンの確認コード」。後者は、いま実際に Gateway へ送っているトークンのもの。保存した値と違えば、設定が反映されていない。
+- 認証に失敗したとき Gateway のログに出る `presentedFingerprint`(アプリが送ってきたもの)と `expected`(Gateway が期待するもの)。
+
+判断: アプリの「使用中」= Gateway の起動時の表示 なら認証は通る。違うときは、
+1. Gateway の出どころが `environment variable` → 古い環境変数が残っている(または `.env` を読めていない)。環境変数を消すか、`.env` のある場所で起動し直す。
+2. アプリの「保存した」≠「使用中」 → アプリが古い設定のまま接続している。アプリの設定を保存し直す。
 Gateway は認証に失敗するたびに、起動したターミナルに次のような行を出す。**送られてきたトークンと正しいトークンを比べて、何がどう違うかを書き出す**(トークンの文字そのものは出さない。長さ・位置・種類だけ)。
 ```
 "msg":"unauthorized connection attempt","userAgent":"okhttp/4.12.0","authorization":"Bearer + token of 40 characters",
