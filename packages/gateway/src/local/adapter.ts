@@ -1,6 +1,7 @@
 import { AgentError } from "../adapter.ts";
 import { ConversationAdapter, type ChatMessage, type ConversationOptions, type ParsedEvent, type TurnParser } from "../conversation.ts";
 import { ThinkStripper } from "./think.ts";
+import type { OllamaLifecycle } from "./lifecycle.ts";
 
 export interface LocalLLMAdapterOptions extends ConversationOptions {
   /** OpenAI 互換エンドポイントの基点。既定は Ollama の http://127.0.0.1:11434/v1 */
@@ -17,6 +18,8 @@ export interface LocalLLMAdapterOptions extends ConversationOptions {
    * delta.reasoning 等の別フィールドは読まない。思考は読み上げの遅延と誤読の原因になる。
    */
   suppressThinking?: boolean;
+  /** 指定すると prepare() でモデルを先読みする。常駐させず、使うときだけ読み込むために使う */
+  lifecycle?: OllamaLifecycle;
 }
 
 /**
@@ -33,6 +36,11 @@ export class LocalLLMAdapter extends ConversationAdapter {
     super({ maxHistoryChars: 8000, ...opts });
     this.o = opts;
     this.agentType = opts.agentType ?? "chat";
+  }
+
+  /** PTT が押されたとき等に呼ぶ。発話・音声認識の間にモデルの読み込みを済ませる(ベストエフォート)。 */
+  async prepare(): Promise<void> {
+    try { await this.o.lifecycle?.warm(); } catch { /* 読み込めなくても会話の要求時に再試行される */ }
   }
 
   protected endpoint() { return `${this.o.baseUrl ?? "http://127.0.0.1:11434/v1"}/chat/completions`; }

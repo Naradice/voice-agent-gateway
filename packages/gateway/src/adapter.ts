@@ -62,6 +62,8 @@ export interface AgentAdapter {
   getSession(sessionId: string): Promise<AgentSession>;
   /** 読み取り専用。書き込み権を必要としない */
   readHistory(sessionId: string): Promise<HistoryItem[]>;
+  /** 応答が近いことを知らせる(例: PTT が押された)。モデルの先読みなど、あれば遅延を減らす準備を行う。失敗しても例外にしない */
+  prepare?(): Promise<void>;
   /** 新規セッションを作る。capabilities に create_session があるときのみ */
   createSession?(title?: string): Promise<AgentSession>;
   /** 指示が受理された時点で解決する。結果は subscribe のイベントで届く */

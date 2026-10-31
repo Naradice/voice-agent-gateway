@@ -25,6 +25,7 @@ npm run p0a                      # Windows + Codex Desktop 上で実行(CODEX_BI
 #   npm run p0a:approval
 # ローカルLLMの疎通確認(Windows。Ollama 起動済み): npm run smoke:local
 #   検索も試す: $env:SEARCH_PROVIDER="brave"; $env:BRAVE_API_KEY="..."  /  "searxng"; $env:SEARXNG_URL="http://127.0.0.1:8080"
+# ローカルLLMの状態確認・先読み・解放(GPU を空けたいとき): npm run llm -- status|warm|unload
 npm test                         # Gateway(偽 app-server によるテスト。Codex 不要)
 npm run typecheck
 ```

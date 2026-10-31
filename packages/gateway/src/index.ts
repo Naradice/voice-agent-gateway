@@ -10,3 +10,4 @@ export * from "./search/types.ts";
 export { BraveSearch, type BraveOptions } from "./search/brave.ts";
 export { SearxngSearch, type SearxngOptions } from "./search/searxng.ts";
 export { createGrounding, needsSearch, formatResults, SEARCH_FAILED, type GroundingOptions } from "./search/grounding.ts";
+export { OllamaLifecycle, type OllamaLifecycleOptions, type ModelStatus } from "./local/lifecycle.ts";

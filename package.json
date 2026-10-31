@@ -12,6 +12,7 @@
     "test": "node --experimental-strip-types --no-warnings --test packages/gateway/test/*.test.ts",
     "smoke:local": "node --experimental-strip-types --no-warnings packages/gateway/scripts/smoke-local.ts",
     "diagnose:thinking": "node --experimental-strip-types --no-warnings packages/gateway/scripts/diagnose-thinking.ts",
+    "llm": "node --experimental-strip-types --no-warnings packages/gateway/scripts/llm.ts",
     "typecheck": "tsc --noEmit -p ."
   },
   "devDependencies": {

@@ -41,3 +41,12 @@
 - **遅延の切り分け:** `npm run diagnose:thinking` で、思考の量・到着時間を条件別(/no_think、reasoning_effort:none、指定なし)に測る。
 - **ウォームアップ:** smoke に追加。モデルの常駐(`OLLAMA_KEEP_ALIVE`)を伸ばさないと、アイドル後の最初の発話で毎回読み込みが発生する。
 - 未検証の仮定: `reasoning_effort: "none"` が Ollama の `/v1` で思考を止めるか。
+
+### GPU の占有方針 (2026-10-31)
+要望: GPU は実験に空けておきたい。モデルを常時ロードしない。
+- **常駐させない。** `OLLAMA_KEEP_ALIVE` は長くしない(既定の5分、または短く)。アイドルが続けば自動で解放される。
+- **使うときだけ先読みする。** `AgentAdapter.prepare()`(任意)を追加。Android の PTT 開始時に呼ぶと、発話・音声認識の間にモデルの読み込みが済む。`LocalLLMAdapter` は `OllamaLifecycle.warm()` で先読みする(Ollama のネイティブAPI。`/v1` は keep_alive を受け付けない)。先読みの失敗は無視し、実際の要求時に再試行される。
+- **実験前に解放できる。** `npm run llm -- unload`(または `ollama stop <model>`)。`npm run llm -- status` で読み込み状態と VRAM、GPU 割合を確認できる。
+- **GPU が実験で埋まっているとき:** 一部が CPU に載る(GPU 割合が 100% 未満)と遅くなる。`status` が割合を表示して知らせる。
+- 未検証: `/api/generate` の空リクエストによる読み込み、`/api/ps` の項目名は Ollama の仕様の記憶に基づく。実機で `npm run llm -- warm` を確認する。
+- 未解決: 読み込み時間の実測(初回トークン 12 秒のうち読み込みが何秒か)。VRAM の節約には、文脈長を必要以上に大きくしない(16384 で KV キャッシュが約2.5GB増える概算)こと、小さいモデルへの切り替えも選択肢。
