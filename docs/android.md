@@ -45,6 +45,13 @@ Android SDK が無い環境では `:app` は自動的に除外される(`setting
 `http://<PCのTailscale IP>:8787` を開くと、「WebSocket required」の下に、答えているプロセスの `pid`・起動時刻・各デバイスの**トークン確認コード**が出る。アプリの確認コードと同じなら、そのプロセスは正しいトークンで動いている。**違えば、古い Gateway が動いたままか、別の設定で動いている。** Windows では `netstat -ano | findstr :8787` で待ち受けているプロセス(PID)を確認し、`taskkill /PID <PID> /F` で止める。待ち受けアドレスが違うと(`127.0.0.1` と Tailscale の IP)、複数の Gateway がエラーなく同時に動いてしまう。
 
 **認証に失敗するとき**(HTTP 401。経路は通っている)
+Gateway は認証に失敗するたびに、起動したターミナルに次のような行を出す。**送られてきたトークンと正しいトークンを比べて、何がどう違うかを書き出す**(トークンの文字そのものは出さない。長さ・位置・種類だけ)。
+```
+"msg":"unauthorized connection attempt","userAgent":"okhttp/4.12.0","authorization":"Bearer + token of 40 characters",
+"presentedFingerprint":"1441ab","expected":[{"deviceId":"pixel","fingerprint":"37fa46","length":43}],
+"comparedWith":"pixel","reason":"presented token is truncated: 3 characters shorter than expected, but the beginning matches","firstDifferenceIndex":40
+```
+`reason` の主な種類: 前後に空白・改行がある / ASCII 以外の文字が含まれる(全角・見えない文字) / 大文字小文字だけが違う(先頭1文字だけならキーボードの自動大文字化) / 見分けにくい文字(0/O, 1/l/I)の取り違え / 途中で切れている / 末尾に余分な文字 / 長さが違う / 同じ長さで別のトークン。`userAgent` が `okhttp/…` なら Android アプリからの接続。`authorization` が `absent` なら、トークンが送られていない。
 原因は、アプリに入れたトークンの入力ミスか、Gateway が古いトークンで動いていること。確認コードで切り分ける。
 1. Gateway のターミナルに、認証失敗のたびに `unauthorized connection attempt` が出る。`presentedFingerprint`(アプリが送ってきたトークンの確認コード)と `expected`(Gateway が期待する確認コード)を比べる。
 2. 起動ログの `devices` にも、Gateway が使っているトークンの確認コードが出る。アプリの設定画面の確認コードと比べる。

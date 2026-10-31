@@ -193,18 +193,29 @@ test("a probe connection answers hello.ok with the instance id, closes, and does
 test("a refused connection is logged with fingerprints of the presented and expected tokens, never the tokens", async () => {
   const logs: { msg: string; meta: any }[] = [];
   const { server } = await boot({ log: (_l, msg, meta) => logs.push({ msg, meta }) });
-  const wrong = "w".repeat(32);
-  await assert.rejects(connect(server.port, wrong).opened, /HTTP 401/);
-  await assert.rejects(connect(server.port, null).opened, /HTTP 401/);
+  try {
+    const wrong = "w".repeat(32);
+    await assert.rejects(connect(server.port, wrong).opened, /HTTP 401/);
+    await assert.rejects(connect(server.port, null).opened, /HTTP 401/);
 
-  const refused = logs.filter((l) => l.msg === "unauthorized connection attempt");
-  assert.equal(refused.length, 2);
-  assert.equal(refused[0].meta.presentedFingerprint, tokenFingerprint(wrong));
-  assert.deepEqual(refused[0].meta.expected, [{ deviceId: "pixel", fingerprint: tokenFingerprint(TOKEN) }, { deviceId: "other", fingerprint: tokenFingerprint("o".repeat(32)) }]);
-  assert.match(refused[1].meta.presentedFingerprint, /Authorization/);
-  const text = JSON.stringify(logs);
-  assert.ok(!text.includes(wrong) && !text.includes(TOKEN), "トークン本体はログに出さない");
-  await server.close();
+    const refused = logs.filter((l) => l.msg === "unauthorized connection attempt");
+    assert.equal(refused.length, 2);
+    assert.equal(refused[0].meta.presentedFingerprint, tokenFingerprint(wrong));
+    assert.deepEqual(refused[0].meta.expected, [
+      { deviceId: "pixel", fingerprint: tokenFingerprint(TOKEN), length: TOKEN.length },
+      { deviceId: "other", fingerprint: tokenFingerprint("o".repeat(32)), length: 32 },
+    ]);
+    assert.equal(refused[0].meta.authorization, `Bearer + token of ${wrong.length} characters`);
+    assert.equal(refused[0].meta.comparedWith, "pixel");
+    assert.match(refused[0].meta.reason, /same length|different length/);
+    assert.equal(refused[1].meta.presentedFingerprint, null);
+    assert.equal(refused[1].meta.authorization, "absent");
+    assert.match(refused[1].meta.reason, /no Bearer token/);
+    const text = JSON.stringify(logs);
+    assert.ok(!text.includes(wrong) && !text.includes(TOKEN), "tokens themselves are never logged");
+  } finally {
+    await server.close();
+  }
 });
 
 test("plain HTTP tells which gateway process answered and each device's token fingerprint, never a token", async () => {
@@ -217,4 +228,22 @@ test("plain HTTP tells which gateway process answered and each device's token fi
   assert.ok(body.includes(`device pixel: token fingerprint ${tokenFingerprint(TOKEN)}`));
   assert.ok(!body.includes(TOKEN) && !body.includes("o".repeat(32)));
   await server.close();
+});
+
+test("a refused connection says exactly what is wrong with the token (truncated, wrong case, invisible character)", async () => {
+  const logs: any[] = [];
+  const { server } = await boot({ log: (_l, msg, meta) => { if (msg.startsWith("unauthorized")) logs.push(meta); } });
+  try {
+    const cases: [string, RegExp][] = [
+      [TOKEN.slice(0, -2), /truncated: 2 characters shorter/],
+      [TOKEN.toUpperCase(), /same length|only in letter case/],
+      [`${TOKEN}\u00a0`, /leading or trailing whitespace/], // a non-breaking space, which a copy-paste can add
+      [TOKEN.slice(0, 5) + "\u00e9" + TOKEN.slice(6), /outside printable ASCII.*position 5/], // a non-ASCII character that can travel in a header
+    ];
+    for (const [token] of cases) await assert.rejects(connect(server.port, token).opened, /HTTP 401/);
+    assert.equal(logs.length, cases.length);
+    cases.forEach(([, re], i) => assert.match(logs[i].reason, re));
+  } finally {
+    await server.close();
+  }
 });

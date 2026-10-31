@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parseEnv } from "node:util";
 import { loadDotEnv, shadowedMessage } from "../src/env.ts";
-import { connectionCode, tokenFingerprint } from "../src/connection.ts";
+import { compareTokens, connectionCode, tokenFingerprint } from "../src/connection.ts";
 import { buildEnvFile, newToken } from "../src/init.ts";
 
 test("buildEnvFile output parses back to the same device list and a long random token", () => {
@@ -67,4 +67,22 @@ test("the token fingerprint is 6 hex chars, ignores surrounding whitespace, and 
 
 test("connectionCode has the url and token joined by #", () => {
   assert.equal(connectionCode("100.1.2.3", 8787, "abc"), "ws://100.1.2.3:8787#abc");
+});
+
+test("compareTokens explains how a presented token differs, without revealing characters", () => {
+  const T = "AbCdEfGhIjKlMnOpQrStUvWxYz0123456789-_abcde";
+  const why = (p: string) => compareTokens(p, T).summary;
+  assert.equal(why(T), "tokens are identical");
+  assert.match(why(` ${T}\n`), /leading or trailing whitespace/);
+  assert.match(why("a" + T.slice(1)), /only in letter case \(position 0\).*auto-capitalization/);
+  assert.match(why(T.replace("Cd", "cD")), /only in letter case \(position 2, 3\)/);
+  assert.match(why(T.replace("0123", "oI23")), /look-alike characters/);
+  assert.match(why(T.slice(0, -3)), /truncated: 3 characters shorter/);
+  assert.match(why(T + "xy"), /2 extra characters at the end/);
+  assert.match(why(T.replace("Mn", "\uff2dn")), /outside printable ASCII.*position 12/);
+  assert.match(why(T.slice(0, 10) + "XXXX" + T.slice(14)), /same length, 4 character\(s\) differ \(first at position 10\)/);
+  assert.match(why("totally-different"), /different length \(presented 17, expected 43\)/);
+  assert.equal(compareTokens(T.slice(0, 10) + "XXXX" + T.slice(14), T).firstDifferenceIndex, 10);
+  // The explanation never contains the token text itself.
+  for (const p of [T.slice(0, -3), T + "xy", "a" + T.slice(1)]) assert.ok(!compareTokens(p, T).summary.includes(T.slice(5, 20)));
 });

@@ -4,7 +4,7 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import { createServer, type IncomingMessage } from "node:http";
 import { WebSocket, WebSocketServer } from "ws";
 import type { Gateway, DeviceLink } from "./gateway.ts";
-import { tokenFingerprint } from "./connection.ts";
+import { compareTokens, tokenFingerprint } from "./connection.ts";
 import { parseClientMessage, type ServerMessage } from "./protocol.ts";
 
 export interface DeviceCredential { deviceId: string; token: string }
@@ -64,11 +64,19 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
     if (!deviceId) {
       // 原因の切り分け用に、送られてきたトークンと、Gateway が期待するトークンの確認コード(6桁)を並べて記録する。
       // 確認コードはトークンの手がかりにならない。不一致なら入力ミスか、古いトークンで動いている。
-      const presented = /^Bearer (.+)$/.exec(req.headers.authorization ?? "")?.[1];
+      const header = req.headers.authorization;
+      const presented = /^Bearer (.+)$/.exec(header ?? "")?.[1];
+      // 一番近いデバイス(先頭がよく一致するもの)と比べて、何がどう違うかを書き出す。トークンの文字は出さない。
+      const prefix = (a: string, b: string) => { let i = 0; while (i < a.length && a[i] === b[i]) i++; return i; };
+      const closest = presented ? [...o.devices].sort((a, b) => prefix(presented, b.token) - prefix(presented, a.token))[0] : undefined;
+      const diff = presented && closest ? compareTokens(presented, closest.token) : undefined;
       log("warn", "unauthorized connection attempt", {
         remote: req.socket.remoteAddress,
-        presentedFingerprint: presented ? tokenFingerprint(presented) : "(Authorization なし)",
-        expected: o.devices.map((d) => ({ deviceId: d.deviceId, fingerprint: tokenFingerprint(d.token) })),
+        userAgent: req.headers["user-agent"],
+        authorization: header === undefined ? "absent" : presented ? `Bearer + token of ${presented.length} characters` : `not a Bearer header (scheme: ${header.split(" ")[0].slice(0, 20)})`,
+        presentedFingerprint: presented ? tokenFingerprint(presented) : null,
+        expected: o.devices.map((d) => ({ deviceId: d.deviceId, fingerprint: tokenFingerprint(d.token), length: d.token.length })),
+        ...(diff ? { comparedWith: closest!.deviceId, reason: diff.summary, firstDifferenceIndex: diff.firstDifferenceIndex } : { reason: "no Bearer token in the Authorization header" }),
       });
       socket.write("HTTP/1.1 401 Unauthorized\r\nConnection: close\r\nContent-Length: 0\r\n\r\n");
       socket.destroy();
