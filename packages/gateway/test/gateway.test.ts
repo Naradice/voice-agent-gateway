@@ -242,3 +242,26 @@ test("ptt.start asks every adapter to prepare (model preloading) without replyin
   assert.deepEqual([chat.prepared, codex.prepared], [1, 1]);
   assert.deepEqual(out, []);
 });
+
+test("hello.ok carries a stable instance id; an ack position from another instance is ignored and nothing is deleted", async () => {
+  const { gw, chat, store } = setup();
+  await send(gw, "r1", "やあ");
+  chat.emit({ type: "message.delta", sessionId: "c1", text: "一つ目。二つ目。" });
+
+  const first: any[] = [];
+  gw.attach("dev1", { send: (m) => { first.push(m); } });
+  const id = first[0].instanceId;
+  assert.equal(id, store.instanceId());
+  assert.equal(store.instanceId(), id, "同じ DB なら変わらない");
+
+  const other: any[] = [];
+  gw.attach("dev1", { send: (m) => { other.push(m); } }, "999", "another-gateway"); // 別の Gateway の位置
+  assert.equal(other[0].replay, 2, "位置を無視して全件を再送する");
+  assert.equal(store.eventsAfter("dev1", 0).length, 2, "削除されない");
+
+  const same: any[] = [];
+  gw.attach("dev1", { send: (m) => { same.push(m); } }, "999", id); // 同じ DB なら位置を信用する
+  assert.equal(same[0].replay, 0);
+
+  assert.notEqual(new Store().instanceId(), id, "別の DB は別の識別子");
+});

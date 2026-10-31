@@ -66,14 +66,17 @@ export class Gateway {
   // ---- 接続 ----
 
   /** 端末の接続を登録し、hello.ok と未 ack のイベントを送る。lastEventId までは処理済みとして削除する。 */
-  attach(deviceId: string, link: DeviceLink, lastEventId?: string): number {
+  attach(deviceId: string, link: DeviceLink, lastEventId?: string, instanceId?: string): number {
     this.links.set(deviceId, link);
     const { store } = this.o;
-    if (lastEventId) store.ackThrough(deviceId, Number(lastEventId));
+    const mine = store.instanceId();
+    // 端末が見ていたのが別の DB(作り直した・別の Gateway)なら、その番号は意味が違う。削除せず、全件を再送する。
+    if (lastEventId && (instanceId === undefined || instanceId === mine)) store.ackThrough(deviceId, Number(lastEventId));
+    else if (lastEventId) this.log("warn", "ignoring ack position from a different gateway instance", { deviceId });
     store.pruneEvents(new Date(Date.now() - 24 * HOUR).toISOString());
     store.pruneRequests(new Date(Date.now() - 7 * 24 * HOUR).toISOString());
     const pending = store.eventsAfter(deviceId, 0);
-    link.send({ type: "hello.ok", deviceId, serverTime: new Date().toISOString(), replay: pending.length });
+    link.send({ type: "hello.ok", deviceId, serverTime: new Date().toISOString(), replay: pending.length, instanceId: mine });
     for (const e of pending) link.send({ ...e.payload, eventId: String(e.seq) });
     return pending.length;
   }

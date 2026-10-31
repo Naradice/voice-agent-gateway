@@ -174,7 +174,15 @@ class VoiceController(
 
     private fun onMessage(m: ServerMessage) {
         when (m) {
-            is HelloOk -> Unit
+            is HelloOk -> {
+                val id = m.instanceId
+                if (id != null && positions.instanceId != id) {
+                    // 別の Gateway(または作り直した DB)。イベント番号は 1 から振り直されているので、前の位置は捨てる。
+                    positions.instanceId = id
+                    positions.lastEventId = null
+                    queue.resetRemote()
+                }
+            }
             is SpeechEnqueue -> onSpeech(m)
             is RequestAccepted -> { inflight.remove(m.requestId); if (_state.value == VoiceState.SENDING) toIdle() }
             is RequestRejected -> {

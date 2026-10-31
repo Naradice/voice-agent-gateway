@@ -20,7 +20,7 @@ Authorization: Bearer <デバイスのトークン>
 
 | type | フィールド | 内容 |
 |---|---|---|
-| `hello` | `lastEventId?`, `client?` | 接続直後に送る。`lastEventId` まで処理済みとして、それより後の未処理イベントを再送する |
+| `hello` | `lastEventId?`, `instanceId?`, `client?` | 接続直後に送る。`lastEventId` まで処理済みとして、それより後の未処理イベントを再送する。`instanceId` は最後に `hello.ok` で受け取ったもの(違う Gateway なら `lastEventId` は無視される) |
 | `ptt.start` | | PTT が押された。応答なし。モデルの先読みを始める(コールドスタートは数十秒かかることがある) |
 | `message.send` | `requestId`, `text`, `sessionId?` | 発話を送る。宛先は Gateway が決める。`sessionId` を指定すると宛先判定を省く |
 | `routing.confirm` | `requestId`, `choice` | 確認要求への回答。`choice` は `candidates` の添字(0 始まり)または `"cancel"` |
@@ -31,7 +31,7 @@ Authorization: Bearer <デバイスのトークン>
 
 | type | フィールド | 内容 |
 |---|---|---|
-| `hello.ok` | `deviceId`, `serverTime`, `replay` | `replay` 件の未処理イベントがこの直後に届く |
+| `hello.ok` | `deviceId`, `serverTime`, `replay`, `instanceId` | `replay` 件の未処理イベントがこの直後に届く。**`instanceId` を保存し、前回と違えば `lastEventId` を破棄する**(Gateway の DB を作り直した・別の Gateway につなぎ替えた場合、イベント番号は 1 から振り直されるため。破棄しないと新しいイベントを「読み上げ済み」として捨ててしまう) |
 | `request.accepted` | `requestId`, `destination`, `sessionId?`, `intent`, `created?` | 指示を受理した(結果は `speech.enqueue` で届く)。`intent` は `send` / `interrupt` / `read_latest` |
 | `request.rejected` | `requestId`, `code`, `message`, `retryable` | 受理できなかった。**`message` は読み上げ可能な日本語**。`retryable` が true なら再試行に意味がある |
 | `routing.confirmation_required` | `requestId`, `prompt`, `candidates[]` | 宛先が曖昧、または確認が必要。`prompt` を読み上げ、回答を `routing.confirm` で返す |

@@ -35,7 +35,7 @@ data class Candidate(val destination: String, val sessionId: String? = null, val
 sealed interface ClientMessage
 
 @Serializable @SerialName("hello")
-data class Hello(val lastEventId: String? = null, val client: String? = null) : ClientMessage
+data class Hello(val lastEventId: String? = null, val instanceId: String? = null, val client: String? = null) : ClientMessage
 
 @Serializable @SerialName("ptt.start")
 data object PttStart : ClientMessage
@@ -63,7 +63,7 @@ data class Ack(val eventId: String) : ClientMessage
 sealed interface ServerMessage
 
 @Serializable @SerialName("hello.ok")
-data class HelloOk(val deviceId: String, val serverTime: String, val replay: Int) : ServerMessage
+data class HelloOk(val deviceId: String, val serverTime: String, val replay: Int, val instanceId: String? = null) : ServerMessage
 
 @Serializable @SerialName("request.accepted")
 data class RequestAccepted(

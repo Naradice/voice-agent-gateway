@@ -61,6 +61,7 @@ export class Store {
         id INTEGER PRIMARY KEY AUTOINCREMENT, device_id TEXT NOT NULL, request_id TEXT NOT NULL,
         utterance TEXT NOT NULL, decision TEXT NOT NULL, created_at TEXT NOT NULL
       );
+      CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
       PRAGMA foreign_keys = ON;
     `);
   }
@@ -118,6 +119,18 @@ export class Store {
   usageTotals(): UsageTotals {
     const r: any = this.db.prepare("SELECT COALESCE(SUM(input_tokens),0) i, COALESCE(SUM(output_tokens),0) o, COUNT(*) n FROM usage").get();
     return { inputTokens: r.i, outputTokens: r.o, requests: r.n };
+  }
+
+  /**
+   * この DB の識別子。DB を作り直したり別の Gateway につなぎ替えたりすると変わる。
+   * 端末が覚えている ack の位置(イベント番号)は DB ごとに意味が違うので、識別子が違うときは位置を信用しない。
+   */
+  instanceId(): string {
+    const r: any = this.db.prepare("SELECT value FROM meta WHERE key = 'instance_id'").get();
+    if (r) return r.value;
+    const id = randomUUID();
+    this.db.prepare("INSERT INTO meta (key, value) VALUES ('instance_id', ?)").run(id);
+    return id;
   }
 
   // --- 未配信イベント (§8.4): 保存 → 配信 → 端末が ack したら削除 ---

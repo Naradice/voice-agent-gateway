@@ -49,9 +49,10 @@ class MockGateway : AutoCloseable {
 }
 
 class IntegrationTest {
-    private class Rig(token: String = TOKEN) : AutoCloseable {
+    // storedPosition / storedInstance は、アプリを起動する前に保存されていた状態(コントローラは作成時にこれを読む)
+    private class Rig(token: String = TOKEN, storedPosition: String? = null, storedInstance: String? = null) : AutoCloseable {
         val gateway = MockGateway()
-        val positions = InMemoryPositionStore()
+        val positions = InMemoryPositionStore(storedPosition, storedInstance)
         val scope = singleThreadScope()
         val client = GatewayClient(gateway.url, token, positions, scope, backoff = Backoff(baseMs = 200, maxMs = 400))
         val rec = FakeRecognizer()
@@ -74,7 +75,7 @@ class IntegrationTest {
     }
 
     private val rigs = mutableListOf<AutoCloseable>()
-    private fun rig(token: String = TOKEN) = Rig(token).also { rigs += it }
+    private fun rig(token: String = TOKEN, stored: String? = null, instance: String? = null) = Rig(token, stored, instance).also { rigs += it }
     @AfterTest fun cleanup() { rigs.forEach { it.close() }; rigs.clear() }
 
     @Test fun `a spoken request streams back sentence by sentence and is acknowledged`() {
@@ -84,6 +85,15 @@ class IntegrationTest {
         assertEquals(listOf("「こんにちは」ですね。", "これはモックの応答です。", "実際のモデルは動いていません。"), r.tts.spoken.toList())
         eventually(message = "ack position") { r.positions.lastEventId == "3" }
         r.idle()
+    }
+
+    @Test fun `a stale position from a previous gateway does not swallow the new gateways events`() {
+        val r = rig(stored = "500", instance = "previous-gateway") // 以前つないでいた Gateway の位置
+        r.start()
+        r.say("こんにちは")
+        eventually(message = "3 sentences") { r.tts.spoken.size == 3 }
+        eventually(message = "position follows the new gateway") { r.positions.lastEventId == "3" }
+        assertTrue(r.positions.instanceId != "previous-gateway" && r.positions.instanceId != null)
     }
 
     @Test fun `events replayed after a dropped connection are not read twice`() {

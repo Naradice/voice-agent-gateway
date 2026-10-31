@@ -20,7 +20,7 @@ export interface Candidate { destination: string; sessionId?: string; label: str
 
 export type ClientMessage =
   /** 接続直後の最初のメッセージ。lastEventId までは処理済みとして、それより後を再送する */
-  | { type: "hello"; lastEventId?: string; client?: string }
+  | { type: "hello"; lastEventId?: string; instanceId?: string; client?: string }
   | { type: "message.send"; requestId: string; text: string; sessionId?: string }
   /** 確認要求への回答。choice は candidates の添字、またはキャンセル */
   | { type: "routing.confirm"; requestId: string; choice: number | "cancel" }
@@ -30,7 +30,8 @@ export type ClientMessage =
   | { type: "ptt.start" };
 
 export type ServerMessage =
-  | { type: "hello.ok"; deviceId: string; serverTime: string; replay: number }
+  /** instanceId は Gateway の DB の識別子。端末は覚えておき、次の hello に載せる。変わったら ack の位置を捨てる */
+  | { type: "hello.ok"; deviceId: string; serverTime: string; replay: number; instanceId: string }
   | { type: "request.accepted"; requestId: string; destination: string; sessionId?: string; intent: string; created?: boolean }
   | { type: "request.rejected"; requestId: string; code: RejectCode; message: string; retryable: boolean }
   | { type: "routing.confirmation_required"; requestId: string; prompt: string; candidates: Candidate[] }
@@ -58,7 +59,8 @@ export function parseClientMessage(raw: string): ParseResult {
   switch (m.type) {
     case "hello":
       if (m.lastEventId !== undefined && !/^\d{1,15}$/.test(String(m.lastEventId))) return { ok: false, message: "lastEventId が不正です" };
-      return { ok: true, msg: { type: "hello", lastEventId: m.lastEventId === undefined ? undefined : String(m.lastEventId), client: typeof m.client === "string" ? m.client.slice(0, 64) : undefined } };
+      if (m.instanceId !== undefined && !str(m.instanceId, 64)) return { ok: false, message: "instanceId が不正です" };
+      return { ok: true, msg: { type: "hello", lastEventId: m.lastEventId === undefined ? undefined : String(m.lastEventId), instanceId: m.instanceId, client: typeof m.client === "string" ? m.client.slice(0, 64) : undefined } };
     case "message.send":
       if (!str(m.requestId, 64)) return { ok: false, message: "requestId が不正です" };
       if (!str(m.text, MAX_TEXT)) return { ok: false, message: "text が空、または長すぎます" };

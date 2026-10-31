@@ -81,7 +81,7 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
         if (ready) return;
         ready = true;
         clearTimeout(helloTimer);
-        o.gateway.attach(deviceId, link, msg.lastEventId);
+        o.gateway.attach(deviceId, link, msg.lastEventId, msg.instanceId);
         return;
       }
       if (!ready) return link.send({ type: "error", code: "not_ready", message: "最初に hello を送ってください" });

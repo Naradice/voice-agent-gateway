@@ -71,7 +71,7 @@ class GatewayClient(
             val request = Request.Builder().url(url).header("Authorization", "Bearer $token").build()
             val ws = http.newWebSocket(request, object : WebSocketListener() {
                 override fun onOpen(webSocket: WebSocket, response: Response) {
-                    webSocket.send(encodeClientMessage(Hello(positions.lastEventId, clientName)))
+                    webSocket.send(encodeClientMessage(Hello(positions.lastEventId, positions.instanceId, clientName)))
                 }
                 override fun onMessage(webSocket: WebSocket, text: String) {
                     val msg = decodeServerMessage(text) ?: return

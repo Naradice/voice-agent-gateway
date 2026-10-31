@@ -22,9 +22,11 @@ interface TtsPort {
 /** 最後に処理した(ack した)イベントの位置。再起動をまたいで残す(Android では DataStore)。 */
 interface PositionStore {
     var lastEventId: String?
+    /** 最後に hello.ok で受け取った Gateway の識別子。変わったら lastEventId は別の DB のものなので捨てる。 */
+    var instanceId: String?
 }
 
-class InMemoryPositionStore(override var lastEventId: String? = null) : PositionStore
+class InMemoryPositionStore(override var lastEventId: String? = null, override var instanceId: String? = null) : PositionStore
 
 enum class ConnectionState { DISCONNECTED, CONNECTING, CONNECTED, AUTH_FAILED, REPLACED }
 

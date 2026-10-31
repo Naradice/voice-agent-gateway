@@ -169,6 +169,27 @@ class VoiceControllerTest {
         assertEquals(null, r.positions.lastEventId)
     }
 
+    @Test fun `a different gateway instance resets the stored position so new events are not dropped`() {
+        val r = rig(stored = "500")
+        r.positions.instanceId = "old-gateway"
+        r.connect()
+        r.link.deliver(HelloOk("pixel", "t", 0, instanceId = "new-gateway"))
+        r.link.speech(1, "新しいGatewayの最初")
+        eventually(message = "spoken") { "新しいGatewayの最初" in r.tts.spoken }
+        eventually(message = "position follows the new gateway") { r.positions.lastEventId == "1" }
+        assertEquals("new-gateway", r.positions.instanceId)
+    }
+
+    @Test fun `the same gateway instance keeps the stored position`() {
+        val r = rig(stored = "5")
+        r.positions.instanceId = "gw"
+        r.connect()
+        r.link.deliver(HelloOk("pixel", "t", 0, instanceId = "gw"))
+        r.link.speech(5, "既読"); r.link.speech(6, "新着")
+        eventually(message = "spoken") { "新着" in r.tts.spoken }
+        assertFalse("既読" in r.tts.started)
+    }
+
     @Test fun `a restart resumes from the stored position`() {
         val r = rig(stored = "5")
         r.connect()

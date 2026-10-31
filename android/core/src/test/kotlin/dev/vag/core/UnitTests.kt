@@ -8,8 +8,9 @@ import kotlin.test.assertTrue
 
 class ProtocolTest {
     @Test fun `client messages are encoded the way the gateway expects`() {
-        assertEquals("""{"type":"hello","lastEventId":"7","client":"android"}""", encodeClientMessage(Hello("7", "android")))
+        assertEquals("""{"type":"hello","lastEventId":"7","client":"android"}""", encodeClientMessage(Hello(lastEventId = "7", client = "android")))
         assertEquals("""{"type":"hello"}""", encodeClientMessage(Hello()), "null は送らない")
+        assertEquals("""{"type":"hello","lastEventId":"7","instanceId":"abc"}""", encodeClientMessage(Hello(lastEventId = "7", instanceId = "abc")))
         assertEquals("""{"type":"ptt.start"}""", encodeClientMessage(PttStart))
         assertEquals("""{"type":"message.send","requestId":"r1","text":"やあ"}""", encodeClientMessage(MessageSend("r1", "やあ")))
         assertEquals("""{"type":"routing.confirm","requestId":"r1","choice":1}""", encodeClientMessage(RoutingConfirm.pick("r1", 1)))
@@ -97,6 +98,15 @@ class SpeechQueueTest {
         assertEquals(Offer.Duplicate(alreadySpoken = true), q.offer(5))
         assertEquals(Offer.Accepted, q.offer(6))
         assertEquals(6L, q.done(q.poll()!!))
+    }
+
+    @Test fun `resetting for a new gateway instance forgets old positions and unread remote events but keeps local notices`() {
+        val q = SpeechQueue(initialAcked = 500)
+        q.offer(501); q.offerLocal(Priority.NORMAL, "local")
+        q.resetRemote()
+        assertNull(q.acked)
+        assertEquals(Offer.Accepted, q.offer(1), "番号が 1 から振り直されても重複扱いにならない")
+        assertEquals(listOf(null, 1L), generateSequence { q.poll() }.map { it.eventId }.toList())
     }
 
     @Test fun `local and ephemeral items are never acked and a requeued item keeps its place`() {

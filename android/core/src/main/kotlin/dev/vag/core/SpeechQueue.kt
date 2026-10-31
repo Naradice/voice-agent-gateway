@@ -56,6 +56,19 @@ class SpeechQueue(initialAcked: Long? = null) {
 
     val size: Int get() = waiting.size
 
+    /**
+     * Gateway の識別子が変わったとき(DB の作り直し・別の Gateway)に、ack の位置と受信済みの記録を捨てる。
+     * 古い番号のまま残すと、新しいイベントを「読み上げ済みの重複」として捨ててしまう。
+     * 古い Gateway から受け取って未読のイベントも、番号の意味が失われるため捨てる(端末内のメッセージは残す)。
+     */
+    fun resetRemote() {
+        waiting.removeAll { it.eventId != null }
+        unfinished.clear()
+        finished.clear()
+        acked = null
+        maxSeen = 0
+    }
+
     /** 読み終えた(または聞き手が飛ばした)。ack の位置が進んだらその位置を返す。 */
     fun done(item: SpeechItem): Long? {
         val id = item.eventId ?: return null
