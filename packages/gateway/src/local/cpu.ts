@@ -44,9 +44,35 @@ export function deviceVerdict(s: ModelStatus, expected: Device): { ok: boolean; 
     return gpu === 0
       ? { ok: true, message: `読み込み中: CPU のみで動いています(想定どおり。${ram}、VRAM 0)` }
       : { ok: false, message: `読み込み中: GPU を使っています(VRAM ${gb(s.vramBytes)}、${Math.round(gpu * 100)}%)。` +
-          "CPU 専用の Ollama(npm run ollama:cpu)につながっていますか。OLLAMA_BASE_URL のポートを確認してください" };
+          "CPU 専用の Ollama(npm run ollama:cpu)につながっていますか(OLLAMA_BASE_URL のポート)。GPU を隠す設定が効かない場合は、npm run ollama:model で GPU を使わない派生モデルを作ってください" };
   }
   return gpu >= 1
     ? { ok: true, message: `読み込み中: GPU で動いています(VRAM ${gb(s.vramBytes)} / ${ram})` }
     : { ok: false, message: `読み込み中: 一部が CPU で動いています(GPU ${Math.round(gpu * 100)}%、VRAM ${gb(s.vramBytes)})。他の用途で GPU が埋まっていると遅くなります` };
+}
+
+/**
+ * Ollama の起動ログから、GPU が検出されたかを判定する。CPU 専用のつもりで起動したのに GPU が見つかっていれば、
+ * 環境変数による無効化が効いていない。ログの形式はバージョンで違うため、library= の値で緩く判定する。
+ */
+export function detectGpuInLog(line: string): { gpu: boolean; cpu: boolean } {
+  const lib = /\blibrary=("?)(\w+)\1/i.exec(line)?.[2]?.toLowerCase();
+  if (/inference compute/i.test(line) || lib) {
+    if (lib === "cpu") return { gpu: false, cpu: true };
+    if (lib && ["cuda", "rocm", "hip", "metal", "vulkan", "oneapi", "sycl"].includes(lib)) return { gpu: true, cpu: false };
+  }
+  return { gpu: false, cpu: false };
+}
+
+/** 派生モデルの名前。例: qwen3:4b → qwen3-4b-cpu */
+export function cpuModelName(base: string): string {
+  return `${base.replace(/-cpu$/, "").replace(/[:/]/g, "-")}-cpu`;
+}
+
+/**
+ * GPU に載せる層の数を 0 にした派生モデルの Modelfile。環境変数で GPU を隠す方法に頼らず、モデルの側で CPU 実行を指定する。
+ * num_ctx も固定する(Ollama の既定の文脈長は版によって変わり、メモリ使用量が増えるため)。
+ */
+export function cpuModelfile(base: string, numCtx = 4096): string {
+  return `FROM ${base.replace(/-cpu$/, "")}\nPARAMETER num_gpu 0\nPARAMETER num_ctx ${numCtx}\n`;
 }

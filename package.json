@@ -14,6 +14,7 @@
     "test": "node --experimental-strip-types --no-warnings --test packages/gateway/test/*.test.ts",
     "smoke:local": "node --experimental-strip-types --no-warnings packages/gateway/scripts/smoke-local.ts",
     "diagnose:thinking": "node --experimental-strip-types --no-warnings packages/gateway/scripts/diagnose-thinking.ts",
+    "ollama:model": "node --experimental-strip-types --no-warnings packages/gateway/scripts/ollama-model.ts",
     "ollama:cpu": "node --experimental-strip-types --no-warnings packages/gateway/scripts/ollama-cpu.ts",
     "llm": "node --experimental-strip-types --no-warnings packages/gateway/scripts/llm.ts",
     "gateway:init": "node --experimental-strip-types --no-warnings packages/gateway/src/init.ts",

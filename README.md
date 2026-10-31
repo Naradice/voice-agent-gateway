@@ -28,7 +28,8 @@ npm run p0a                      # Windows + Codex Desktop 上で実行(CODEX_BI
 #   npm run p0a:approval
 # ローカルLLMの疎通確認(Windows。Ollama 起動済み): npm run smoke:local
 #   検索も試す: $env:SEARCH_PROVIDER="brave"; $env:BRAVE_API_KEY="..."  /  "searxng"; $env:SEARXNG_URL="http://127.0.0.1:8080"
-# GPU を使わない会話モデル: npm run ollama:cpu   (CPU 専用の Ollama を別ポート 11435 で起動。.env の既定はこの構成)
+# GPU を使わない会話モデル: npm run ollama:cpu   (CPU 専用の Ollama を別ポート 11435 で起動。GPU を検出したら警告する)
+#   GPU を隠す設定が効かないとき: npm run ollama:model  (num_gpu 0 の派生モデル qwen3-4b-cpu を作る。.env の LOCAL_MODEL をそれにする)
 # ローカルLLMの状態確認・先読み・解放: npm run llm -- status|warm|unload   (LOCAL_DEVICE=cpu なら GPU 使用を警告)
 # Gateway の起動(初回): npm run gateway:init   → .env を作る(トークンを自動生成。Tailscale の IP を検出)
 #   以降: npm run gateway          設定は .env から読む(実際の環境変数が優先。.env はコミットされない)

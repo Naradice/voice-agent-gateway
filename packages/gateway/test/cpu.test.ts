@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { CPU_OLLAMA_PORT, cpuOnlyEnv, deviceVerdict, portOf } from "../src/local/cpu.ts";
+import { CPU_OLLAMA_PORT, cpuModelName, cpuModelfile, cpuOnlyEnv, detectGpuInLog, deviceVerdict, portOf } from "../src/local/cpu.ts";
 
 test("cpuOnlyEnv hides every GPU, binds to localhost only, and limits memory use; it keeps the rest of the environment", () => {
   const env = cpuOnlyEnv({ PATH: "/bin", OLLAMA_HOST: "0.0.0.0:11434", CUDA_VISIBLE_DEVICES: "0" }, 11435);
@@ -37,4 +37,24 @@ test("deviceVerdict: a CPU-only setup must show no VRAM; any GPU use is flagged 
   assert.equal(deviceVerdict(gpu, "gpu").ok, true);
   assert.equal(deviceVerdict(part, "gpu").ok, false);
   assert.equal(deviceVerdict({ loaded: false }, "cpu").ok, true);
+});
+
+test("detectGpuInLog recognises GPU and CPU-only startup lines in the formats of different Ollama versions", () => {
+  const cuda = 'time=2026-10-31T10:00:00 level=INFO source=types.go:131 msg="inference compute" id=GPU-1234 library=CUDA compute=8.9 name=CUDA0 total="24.0 GiB"';
+  const cudaOld = 'level=INFO source=gpu.go:217 msg="inference compute" id=GPU-abcd library=cuda variant=v12 compute=8.6 driver=12.4';
+  const rocm = 'msg="inference compute" id=0 library=rocm compute=gfx1100 name=Radeon';
+  const cpu = 'time=... level=INFO source=types.go:60 msg="inference compute" id=cpu library=cpu compute="" name=cpu description=cpu';
+  assert.deepEqual(detectGpuInLog(cuda), { gpu: true, cpu: false });
+  assert.deepEqual(detectGpuInLog(cudaOld), { gpu: true, cpu: false });
+  assert.deepEqual(detectGpuInLog(rocm), { gpu: true, cpu: false });
+  assert.deepEqual(detectGpuInLog(cpu), { gpu: false, cpu: true });
+  assert.deepEqual(detectGpuInLog("level=INFO msg=\"Listening on 127.0.0.1:11435\""), { gpu: false, cpu: false });
+});
+
+test("the CPU-only derived model is named predictably and offloads zero layers to the GPU", () => {
+  assert.equal(cpuModelName("qwen3:4b"), "qwen3-4b-cpu");
+  assert.equal(cpuModelName("qwen3-4b-cpu"), "qwen3-4b-cpu", "二重に -cpu を付けない");
+  assert.equal(cpuModelName("library/qwen3:8b"), "library-qwen3-8b-cpu");
+  assert.equal(cpuModelfile("qwen3:4b"), "FROM qwen3:4b\nPARAMETER num_gpu 0\nPARAMETER num_ctx 4096\n");
+  assert.match(cpuModelfile("qwen3-4b-cpu", 2048), /^FROM qwen3-4b\n.*num_ctx 2048/s, "派生モデルから更に派生しない");
 });
