@@ -28,6 +28,10 @@ object VoiceRuntime {
     private val _connection = MutableStateFlow(ConnectionState.DISCONNECTED)
     val connection: StateFlow<ConnectionState> = _connection
 
+    private val _lastError = MutableStateFlow<String?>(null)
+    /** 直近の接続失敗の理由(画面表示用)。 */
+    val lastError: StateFlow<String?> = _lastError
+
     private val _status = MutableStateFlow("未接続")
     /** 通知に出す短い状態表示。 */
     val status: StateFlow<String> = _status
@@ -36,16 +40,25 @@ object VoiceRuntime {
         if (_controller.value != null) return
         val settings = Settings(context)
         if (!settings.isConfigured) return
+        val url = settings.url
+        val token = settings.token
+        if (url.isNullOrBlank() || token == null) {
+            // 端末の鍵が変わった等で、保存したトークンを読み出せない。
+            _lastError.value = "保存されたトークンを読み出せません。設定でトークンを入力し直してください"
+            return
+        }
+        _lastError.value = null
         val app = context.applicationContext
 
         val s = CoroutineScope(SupervisorJob() + Dispatchers.Main)
         scope = s
-        val client = GatewayClient(settings.url!!, settings.token!!, settings.positions, s)
+        val client = GatewayClient(url, token, settings.positions, s)
         val speaker = AndroidTts(app)
         tts = speaker
         val controller = VoiceController(client, AndroidSpeechRecognizer(app), speaker, settings.positions, s)
 
         s.launch { client.state.collect { _connection.value = it } }
+        s.launch { client.lastError.collect { _lastError.value = it } }
         s.launch { combine(client.state, controller.state) { c, v -> statusText(c, v) }.collect { _status.value = it } }
         controller.start()
         _controller.value = controller

@@ -34,6 +34,10 @@ class GatewayClient(
     private val _state = MutableStateFlow(ConnectionState.DISCONNECTED)
     override val state: StateFlow<ConnectionState> = _state
 
+    private val _lastError = MutableStateFlow<String?>(null)
+    /** 直近の接続失敗の理由(画面表示用)。接続に成功すると消える。 */
+    val lastError: StateFlow<String?> = _lastError
+
     // 順序を保つため、受信は1本のキューに積む。購読者は1つだけを想定。
     private val channel = Channel<ServerMessage>(Channel.UNLIMITED)
     override val incoming: Flow<ServerMessage> = channel.receiveAsFlow()
@@ -76,6 +80,7 @@ class GatewayClient(
                 override fun onMessage(webSocket: WebSocket, text: String) {
                     val msg = decodeServerMessage(text) ?: return
                     if (msg is HelloOk) {
+                        _lastError.value = null
                         backoff.reset()
                         _state.value = ConnectionState.CONNECTED
                     }
@@ -83,7 +88,10 @@ class GatewayClient(
                 }
                 override fun onClosing(webSocket: WebSocket, code: Int, reason: String) { webSocket.close(1000, null) }
                 override fun onClosed(webSocket: WebSocket, code: Int, reason: String) { closed.complete(Closed(code, null)) }
-                override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) { closed.complete(Closed(null, response?.code)) }
+                override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+                    _lastError.value = if (response != null) "HTTP ${response.code}" else (t.message ?: t.javaClass.simpleName)
+                    closed.complete(Closed(null, response?.code))
+                }
             })
             socket = ws
             val result = try {

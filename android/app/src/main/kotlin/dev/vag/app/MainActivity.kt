@@ -28,6 +28,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -45,7 +46,7 @@ class MainActivity : ComponentActivity() {
                     onSaveSettings = { url, token ->
                         Settings(this).apply { this.url = url; this.token = token }
                         VoiceRuntime.stop()
-                        startVoice()
+                        requestPermissionsThenStart()
                     },
                 )
             }
@@ -79,15 +80,29 @@ private fun pttLabel(s: VoiceState) = when (s) {
 
 @Composable
 private fun MainScreen(onSaveSettings: (String, String) -> Unit) {
+    val context = LocalContext.current
     val controller by VoiceRuntime.controller.collectAsState()
     val status by VoiceRuntime.status.collectAsState()
+    val lastError by VoiceRuntime.lastError.collectAsState()
     val voiceState by remember(controller) { controller?.state ?: MutableStateFlow(VoiceState.DISCONNECTED) }.collectAsState()
     val heard by remember(controller) { controller?.heard ?: MutableStateFlow<String?>(null) }.collectAsState()
     val spoken by remember(controller) { controller?.spoken ?: MutableStateFlow<String?>(null) }.collectAsState()
     var showSettings by remember { mutableStateOf(false) }
+    val settings = Settings(context)
+
+    // 「未接続」の理由を画面で分かるようにする(許可がない・未設定・接続できない、は別の状況)
+    val hint = when {
+        ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED ->
+            "マイクの許可がありません。端末の設定でこのアプリにマイクを許可してください。"
+        !settings.isConfigured -> "接続先とトークンが未設定です。下の「設定」から入力してください。"
+        else -> null
+    }
 
     Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(status, style = MaterialTheme.typography.titleMedium)
+        settings.url?.let { Text("接続先: $it", style = MaterialTheme.typography.bodySmall) }
+        hint?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+        lastError?.let { Text("接続エラー: $it", color = MaterialTheme.colorScheme.error) }
         // 画面を見ずに使えるよう、ボタンは画面の大半を占める大きさにする
         Button(onClick = { VoiceRuntime.pressPtt() }, modifier = Modifier.fillMaxWidth().weight(1f)) {
             Text(pttLabel(voiceState), style = MaterialTheme.typography.headlineMedium)
@@ -97,12 +112,12 @@ private fun MainScreen(onSaveSettings: (String, String) -> Unit) {
         TextButton(onClick = { showSettings = true }) { Text("設定") }
     }
 
-    if (showSettings) SettingsDialog(onDismiss = { showSettings = false }, onSave = { u, t -> showSettings = false; onSaveSettings(u, t) })
+    if (showSettings) SettingsDialog(initialUrl = settings.url ?: "", onDismiss = { showSettings = false }, onSave = { u, t -> showSettings = false; onSaveSettings(u, t) })
 }
 
 @Composable
-private fun SettingsDialog(onDismiss: () -> Unit, onSave: (String, String) -> Unit) {
-    var url by remember { mutableStateOf("") }
+private fun SettingsDialog(initialUrl: String, onDismiss: () -> Unit, onSave: (String, String) -> Unit) {
+    var url by remember { mutableStateOf(initialUrl) }
     var token by remember { mutableStateOf("") }
     AlertDialog(
         onDismissRequest = onDismiss,

@@ -159,3 +159,21 @@ class IntegrationTest {
         second.stop()
     }
 }
+
+class ConnectionFailureTest {
+    @Test fun `an unreachable gateway reports why, and keeps retrying`() {
+        val port = ServerSocket(0).use { it.localPort } // 何も待ち受けていないポート
+        val scope = singleThreadScope()
+        val client = GatewayClient("ws://127.0.0.1:$port", TOKEN, InMemoryPositionStore(), scope, backoff = Backoff(baseMs = 100, maxMs = 200))
+        try {
+            client.start()
+            eventually(10_000, "error reported") { client.lastError.value != null }
+            assertTrue(client.state.value != ConnectionState.CONNECTED)
+            val first = client.lastError.value
+            assertTrue(!first.isNullOrBlank())
+        } finally {
+            client.stop()
+            scope.cancel()
+        }
+    }
+}

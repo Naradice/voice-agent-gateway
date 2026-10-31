@@ -63,7 +63,8 @@ class Settings(context: Context) {
         get() = prefs.getString("token", null)?.let { TokenCipher.decrypt(it) }
         set(v) { prefs.edit().apply { if (v.isNullOrBlank()) remove("token") else putString("token", TokenCipher.encrypt(v.trim())) }.apply() }
 
-    val isConfigured: Boolean get() = !url.isNullOrBlank() && !token.isNullOrBlank()
+    /** 接続先とトークンが保存されているか(トークンは復号せず、あるかどうかだけ見る)。 */
+    val isConfigured: Boolean get() = !url.isNullOrBlank() && prefs.contains("token")
 
     val positions: PositionStore = object : PositionStore {
         override var lastEventId: String?

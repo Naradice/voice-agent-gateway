@@ -45,6 +45,8 @@ class VoiceService : Service() {
             stopSelf()
             return START_NOT_STICKY
         }
+        // 設定が変わって再度起動された場合(サービスが動いたまま)にも、接続を張り直す。すでに動いていれば何もしない。
+        VoiceRuntime.start(this)
         return START_STICKY
     }
 
