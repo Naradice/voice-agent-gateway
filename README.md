@@ -1,7 +1,7 @@
 # Voice Agent Gateway
 
 Android の PTT 音声から ChatGPT(OpenAI API)や Codex などの Agent へ会話を振り分ける Gateway。
-設計: `docs/design.md`(元設計書 v0.1 を置く場所)、所見: `docs/design-review.md`。
+設計: `docs/design.md`(元設計書 v0.1 を置く場所)、変更点: `docs/design-changes.md`、所見: `docs/design-review.md`。
 
 ## 現状: Phase 0A / 0B の着手
 
@@ -9,7 +9,7 @@ Android の PTT 音声から ChatGPT(OpenAI API)や Codex などの Agent へ会
 |---|---|---|
 | `packages/shared` | Router / Session / Decision の共通型 | 完了 |
 | `packages/phase0b-router-eval` | オフライン評価ハーネス + ルールのみルーター(方式A) | 動作確認済(dev 36 / final 20。方式A系と TF-IDF 代用の比較) |
-| `packages/gateway` | `AgentAdapter` 共通インターフェース、`CodexAdapter`(貸し出し方式)、`OpenAIAdapter`(履歴は SQLite)、レジストリ。偽 app-server / 偽 fetch で20件のテスト | 骨格。実Codex・実OpenAI APIでは未実行 |
+| `packages/gateway` | `AgentAdapter` 共通インターフェース、`CodexAdapter`(貸し出し方式)、`LocalLLMAdapter`(日常会話の既定。Ollama 等の OpenAI 互換)、`OpenAIAdapter`(オプション)、履歴は SQLite。偽 app-server / 偽 fetch で26件のテスト | 骨格。実Codex・実LLMでは未実行 |
 | `packages/phase0a-codex-probe` | Codex App Server プローブ(`probe.ts` 読み取り / `probe-write.ts` 書き込み) | 読み取りは Windows 実機で P0-01/02 合格。書き込みは未実行 |
 
 ## 実行

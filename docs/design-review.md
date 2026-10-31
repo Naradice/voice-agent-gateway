@@ -148,6 +148,8 @@ final は未使用。dev は筆者が作成し、ルール追加も dev を見�
 
 ## OpenAI Adapter と保存層 (packages/gateway)
 
+> 日常会話の既定はローカルLLMに変更(`docs/design-changes.md`)。OpenAI Adapter は同じ `ConversationAdapter` 基底の派生で、オプションの接続先。以下の保存層・履歴・中断・エラーの扱いは両方に共通。
+
 実際の OpenAI API には**まだ接続していない**(キーなし)。偽 fetch でテスト(10件)。
 
 - 会話の正本は Gateway の SQLite(`sessions`, `messages`, `usage`)。API へは毎回、直近 `maxHistoryMessages`(既定40)件の履歴を送り、`store:false` で OpenAI 側に保存させない(§9.3)。
