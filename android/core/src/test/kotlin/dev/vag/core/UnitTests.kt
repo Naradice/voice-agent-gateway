@@ -145,3 +145,23 @@ class ChoiceParserTest {
         assertEquals(Choice.Cancel, parseChoice("いいえ", 1))
     }
 }
+
+class SetupTest {
+    @Test fun `the fingerprint matches the gateways value for the same token`() {
+        // packages/gateway/test/env.test.ts と同じテストベクトル。どちらかを変えたら、もう一方も変えること。
+        assertEquals("4d1986", tokenFingerprint("test-token-for-fingerprint"))
+        assertEquals(tokenFingerprint("abc-0123456789-abcdef"), tokenFingerprint("  abc-0123456789-abcdef\n"), "前後の空白は無視する")
+        assertTrue(tokenFingerprint("token-A-0123456789abcdef") != tokenFingerprint("token-B-0123456789abcdef"), "1文字違えば変わる")
+    }
+
+    @Test fun `a connection code is split into url and token`() {
+        assertEquals(ConnectionCode("ws://100.1.2.3:8787", "abcdefghijklmnop-_0123"), parseConnectionCode("ws://100.1.2.3:8787#abcdefghijklmnop-_0123"))
+        assertEquals(ConnectionCode("wss://gw.example:443", "abcdefghijklmnop"), parseConnectionCode("  wss://gw.example:443#abcdefghijklmnop \n(余計な行)"))
+    }
+
+    @Test fun `broken connection codes are rejected rather than partly applied`() {
+        for (t in listOf("", "ws://100.1.2.3:8787", "http://100.1.2.3:8787#abcdefghijklmnop", "ws://100.1.2.3:8787#short", "#abcdefghijklmnop", "ws://h:1#abc def ghi jkl mnop")) {
+            assertEquals(null, parseConnectionCode(t), t)
+        }
+    }
+}

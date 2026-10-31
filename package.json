@@ -16,6 +16,7 @@
     "diagnose:thinking": "node --experimental-strip-types --no-warnings packages/gateway/scripts/diagnose-thinking.ts",
     "llm": "node --experimental-strip-types --no-warnings packages/gateway/scripts/llm.ts",
     "gateway:init": "node --experimental-strip-types --no-warnings packages/gateway/src/init.ts",
+    "gateway:code": "node --experimental-strip-types --no-warnings packages/gateway/src/code.ts",
     "gateway:mock": "node --experimental-strip-types --no-warnings packages/gateway/src/mock.ts",
     "gateway": "node --experimental-strip-types --no-warnings packages/gateway/src/main.ts",
     "typecheck": "tsc --noEmit -p ."

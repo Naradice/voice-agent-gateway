@@ -177,3 +177,45 @@ class ConnectionFailureTest {
         }
     }
 }
+
+class ConnectionTestTest {
+    private val gateways = mutableListOf<MockGateway>()
+    @AfterTest fun cleanup() { gateways.forEach { it.close() }; gateways.clear() }
+    private fun gateway() = MockGateway().also { gateways += it }
+
+    @Test fun `a correct url and token succeed`() {
+        val g = gateway()
+        val r = runBlocking { testConnection(g.url, TOKEN) }
+        assertTrue(r is ConnectionTestResult.Ok, r.toString())
+        assertEquals("pixel", (r as ConnectionTestResult.Ok).deviceId)
+        assertTrue(!r.instanceId.isNullOrBlank())
+    }
+
+    @Test fun `a wrong token is reported as an authentication failure, not as unreachable`() {
+        val g = gateway()
+        assertEquals(ConnectionTestResult.AuthFailed, runBlocking { testConnection(g.url, "wrong-token-0123456789abcdef") })
+    }
+
+    @Test fun `an unreachable address and a malformed url give readable failures`() {
+        val port = ServerSocket(0).use { it.localPort }
+        val closed = runBlocking { testConnection("ws://127.0.0.1:$port", TOKEN, timeoutMs = 3000) }
+        assertTrue(closed is ConnectionTestResult.Failed && closed.reason.isNotBlank(), closed.toString())
+        val bad = runBlocking { testConnection("not a url", TOKEN) }
+        assertTrue(bad is ConnectionTestResult.Failed && "形式" in bad.reason, bad.toString())
+    }
+
+    @Test fun `testing does not disconnect a running client`() {
+        val g = gateway()
+        val scope = singleThreadScope()
+        val client = GatewayClient(g.url, TOKEN, InMemoryPositionStore(), scope)
+        try {
+            client.start()
+            eventually(15_000, "connected") { client.state.value == ConnectionState.CONNECTED }
+            repeat(2) { assertTrue(runBlocking { testConnection(g.url, TOKEN) } is ConnectionTestResult.Ok) }
+            runBlocking { delay(500) }
+            assertEquals(ConnectionState.CONNECTED, client.state.value, "本番の接続が置き換えられていない")
+        } finally {
+            client.stop(); scope.cancel()
+        }
+    }
+}

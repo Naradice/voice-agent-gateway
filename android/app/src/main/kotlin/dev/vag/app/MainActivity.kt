@@ -10,6 +10,9 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -26,14 +29,22 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import dev.vag.core.ConnectionTestResult
 import dev.vag.core.VoiceState
+import dev.vag.core.parseConnectionCode
+import dev.vag.core.testConnection
+import dev.vag.core.tokenFingerprint
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     private val permissionRequest = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { startVoice() }
@@ -44,7 +55,7 @@ class MainActivity : ComponentActivity() {
             MaterialTheme {
                 MainScreen(
                     onSaveSettings = { url, token ->
-                        Settings(this).apply { this.url = url; this.token = token }
+                        Settings(this).apply { this.url = url; if (!token.isNullOrBlank()) this.token = token }
                         VoiceRuntime.stop()
                         requestPermissionsThenStart()
                     },
@@ -79,7 +90,7 @@ private fun pttLabel(s: VoiceState) = when (s) {
 }
 
 @Composable
-private fun MainScreen(onSaveSettings: (String, String) -> Unit) {
+private fun MainScreen(onSaveSettings: (String, String?) -> Unit) {
     val context = LocalContext.current
     val controller by VoiceRuntime.controller.collectAsState()
     val status by VoiceRuntime.status.collectAsState()
@@ -89,6 +100,8 @@ private fun MainScreen(onSaveSettings: (String, String) -> Unit) {
     val spoken by remember(controller) { controller?.spoken ?: MutableStateFlow<String?>(null) }.collectAsState()
     var showSettings by remember { mutableStateOf(false) }
     val settings = Settings(context)
+    // 保存済みトークンの確認コード(トークン本体は出さない)。PC の `npm run gateway:code` の表示と比べる。
+    val savedToken = remember(showSettings, controller) { settings.token }
 
     // 「未接続」の理由を画面で分かるようにする(許可がない・未設定・接続できない、は別の状況)
     val hint = when {
@@ -101,6 +114,7 @@ private fun MainScreen(onSaveSettings: (String, String) -> Unit) {
     Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(status, style = MaterialTheme.typography.titleMedium)
         settings.url?.let { Text("接続先: $it", style = MaterialTheme.typography.bodySmall) }
+        savedToken?.let { Text("トークン確認コード: ${tokenFingerprint(it)}", style = MaterialTheme.typography.bodySmall) }
         hint?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         lastError?.let { Text("接続エラー: $it", color = MaterialTheme.colorScheme.error) }
         // 画面を見ずに使えるよう、ボタンは画面の大半を占める大きさにする
@@ -112,27 +126,79 @@ private fun MainScreen(onSaveSettings: (String, String) -> Unit) {
         TextButton(onClick = { showSettings = true }) { Text("設定") }
     }
 
-    if (showSettings) SettingsDialog(initialUrl = settings.url ?: "", onDismiss = { showSettings = false }, onSave = { u, t -> showSettings = false; onSaveSettings(u, t) })
+    if (showSettings) {
+        SettingsDialog(
+            initialUrl = settings.url ?: "",
+            savedToken = savedToken,
+            onDismiss = { showSettings = false },
+            onSave = { u, t -> showSettings = false; onSaveSettings(u, t) },
+        )
+    }
 }
 
+private fun describe(r: ConnectionTestResult) = when (r) {
+    is ConnectionTestResult.Ok -> "接続できました(デバイス: ${r.deviceId})。接続先もトークンも正しいです。"
+    ConnectionTestResult.AuthFailed -> "Gateway には届きましたが、トークンが違います。確認コードを PC の表示と比べてください。"
+    is ConnectionTestResult.Failed -> "接続できません: ${r.reason}"
+}
+
+/**
+ * 接続先とトークンの設定。
+ * - トークンを空欄のまま保存すると、保存済みのトークンをそのまま使う(毎回入力し直さなくてよい)。
+ * - 入力ミスの確認: 確認コード(PC の `npm run gateway:code` と同じ値か)、接続テスト、表示の切り替え。
+ * - 長いトークンを手で打たずに済むよう、クリップボードの「接続コード」(ws://host:port#token)から一括で設定できる。
+ */
 @Composable
-private fun SettingsDialog(initialUrl: String, onDismiss: () -> Unit, onSave: (String, String) -> Unit) {
+private fun SettingsDialog(initialUrl: String, savedToken: String?, onDismiss: () -> Unit, onSave: (String, String?) -> Unit) {
+    val clipboard = LocalClipboardManager.current
+    val scope = rememberCoroutineScope()
     var url by remember { mutableStateOf(initialUrl) }
-    var token by remember { mutableStateOf("") }
+    var token by remember { mutableStateOf("") } // 空 = 保存済みのトークンを使う
+    var reveal by remember { mutableStateOf(false) }
+    var testing by remember { mutableStateOf(false) }
+    var message by remember { mutableStateOf<String?>(null) }
+
+    val effectiveToken = token.trim().ifEmpty { savedToken ?: "" }
+    val canUse = url.isNotBlank() && effectiveToken.isNotEmpty()
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Gateway の設定") },
         text = {
-            Column {
-                OutlinedTextField(url, { url = it }, label = { Text("接続先 (ws://100.x.x.x:8787)") }, singleLine = true)
-                Spacer(Modifier.height(8.dp))
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                OutlinedTextField(url, { url = it; message = null }, label = { Text("接続先 (ws://100.x.x.x:8787)") }, singleLine = true)
+                Spacer(Modifier.height(4.dp))
                 OutlinedTextField(
-                    token, { token = it }, label = { Text("トークン") }, singleLine = true,
-                    visualTransformation = PasswordVisualTransformation(),
+                    token, { token = it; message = null },
+                    label = { Text(if (savedToken != null) "トークン(空欄なら保存済みを使う)" else "トークン") },
+                    singleLine = true,
+                    visualTransformation = if (reveal) VisualTransformation.None else PasswordVisualTransformation(),
                 )
+                if (effectiveToken.isNotEmpty()) {
+                    Text("トークン確認コード: ${tokenFingerprint(effectiveToken)}", style = MaterialTheme.typography.bodyMedium)
+                    Text("PC の「npm run gateway:code」の確認コードと同じなら、入力は正しいです。", style = MaterialTheme.typography.bodySmall)
+                }
+                Row {
+                    TextButton(onClick = { reveal = !reveal }) { Text(if (reveal) "隠す" else "表示") }
+                    TextButton(onClick = { clipboard.getText()?.text?.trim()?.takeIf { it.isNotEmpty() }?.let { token = it; message = null } }) { Text("トークンを貼り付け") }
+                }
+                TextButton(onClick = {
+                    val code = clipboard.getText()?.text?.let { parseConnectionCode(it) }
+                    if (code != null) { url = code.url; token = code.token; message = "接続コードを読み込みました。「接続テスト」で確認してください。" }
+                    else message = "クリップボードに接続コードがありません(PC の「npm run gateway:code」で表示できます)"
+                }) { Text("接続コードを貼り付け") }
+                TextButton(
+                    enabled = canUse && !testing,
+                    onClick = {
+                        testing = true
+                        message = "テスト中…"
+                        scope.launch { message = describe(testConnection(url.trim(), effectiveToken)); testing = false }
+                    },
+                ) { Text("接続テスト") }
+                message?.let { Text(it) }
             }
         },
-        confirmButton = { TextButton(onClick = { onSave(url, token) }, enabled = url.isNotBlank() && token.isNotBlank()) { Text("保存して接続") } },
+        confirmButton = { TextButton(onClick = { onSave(url.trim(), token.trim().ifEmpty { null }) }, enabled = canUse) { Text("保存して接続") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("キャンセル") } },
     )
 }

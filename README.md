@@ -31,6 +31,7 @@ npm run p0a                      # Windows + Codex Desktop 上で実行(CODEX_BI
 # ローカルLLMの状態確認・先読み・解放(GPU を空けたいとき): npm run llm -- status|warm|unload
 # Gateway の起動(初回): npm run gateway:init   → .env を作る(トークンを自動生成。Tailscale の IP を検出)
 #   以降: npm run gateway          設定は .env から読む(実際の環境変数が優先。.env はコミットされない)
+# 接続コード・確認コードの表示(スマホの設定用): npm run gateway:code   (トークンを含まない表示: -- --check)
 # Android 開発用のモック Gateway(Ollama・Codex 不要): npm run gateway:mock
 npm test                         # Gateway(偽 app-server によるテスト。Codex 不要)
 npm run typecheck

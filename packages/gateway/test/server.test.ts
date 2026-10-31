@@ -20,8 +20,8 @@ async function boot(extra: { heartbeatMs?: number; helloTimeoutMs?: number; maxP
 }
 
 // token: null はトークンなし(undefined だと既定値が使われてしまう)
-function connect(port: number, token: string | null = TOKEN, opts: object = {}) {
-  const ws = new WebSocket(`ws://127.0.0.1:${port}`, { headers: token ? { authorization: `Bearer ${token}` } : {}, ...opts });
+function connect(port: number, token: string | null = TOKEN, opts: object = {}, path = "") {
+  const ws = new WebSocket(`ws://127.0.0.1:${port}${path}`, { headers: token ? { authorization: `Bearer ${token}` } : {}, ...opts });
   const inbox: any[] = [];
   const waiters: ((m: any) => void)[] = [];
   ws.on("message", (d) => { const m = JSON.parse(d.toString()); const w = waiters.shift(); w ? w(m) : inbox.push(m); });
@@ -161,5 +161,30 @@ test("oversized messages close the connection", async () => {
   await c.next();
   c.ws.send("x".repeat(5000));
   assert.equal(await c.closed, 1009);
+  await server.close();
+});
+
+test("a probe connection answers hello.ok with the instance id, closes, and does not disturb the live connection", async () => {
+  const { server, chat } = await boot();
+  const live = connect(server.port);
+  await live.opened;
+  live.send({ type: "hello" });
+  const liveHello = await live.next();
+
+  const probe = connect(server.port, TOKEN, {}, "/?probe=1");
+  await probe.opened;
+  const ok = await probe.next();
+  assert.deepEqual([ok.type, ok.deviceId, ok.replay, ok.instanceId], ["hello.ok", "pixel", 0, liveHello.instanceId]);
+  assert.equal(await probe.closed, 1000);
+
+  // 本番の接続は置き換えられておらず、そのままイベントを受け取れる
+  live.send({ type: "message.send", requestId: "r1", text: "やあ" });
+  assert.equal((await live.next()).type, "request.accepted");
+  chat.emit({ type: "message.delta", sessionId: "c1", text: "生きています。" });
+  assert.equal((await live.next()).text, "生きています。");
+
+  // 間違ったトークンは、プローブでも 401
+  await assert.rejects(connect(server.port, "wrong-token", {}, "/?probe=1").opened, /HTTP 401/);
+  live.ws.close();
   await server.close();
 });

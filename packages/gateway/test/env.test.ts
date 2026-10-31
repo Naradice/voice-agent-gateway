@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parseEnv } from "node:util";
 import { loadDotEnv } from "../src/env.ts";
+import { connectionCode, tokenFingerprint } from "../src/connection.ts";
 import { buildEnvFile, newToken } from "../src/init.ts";
 
 test("buildEnvFile output parses back to the same device list and a long random token", () => {
@@ -50,4 +51,16 @@ test("gateway:init writes a private .env once and refuses to overwrite it", asyn
   assert.notEqual(second.status, 0);
   assert.ok(!second.stdout.includes(token) && !second.stderr.includes(token));
   assert.equal(JSON.parse(parseEnv(readFileSync(file, "utf8")).VAG_DEVICES!)[0].token, token, "上書きされていない");
+});
+
+test("the token fingerprint is 6 hex chars, ignores surrounding whitespace, and matches the Android implementation's test vector", () => {
+  assert.match(tokenFingerprint("any-token-0123456789abcdef"), /^[0-9a-f]{6}$/);
+  assert.equal(tokenFingerprint("  spaced-token-0123456789  "), tokenFingerprint("spaced-token-0123456789"));
+  assert.notEqual(tokenFingerprint("token-A-0123456789abcdef"), tokenFingerprint("token-B-0123456789abcdef"));
+  // Kotlin 側(core の FingerprintTest)と同じ値。どちらかを変えたら、もう一方も変えること。
+  assert.equal(tokenFingerprint("test-token-for-fingerprint"), "4d1986");
+});
+
+test("connectionCode has the url and token joined by #", () => {
+  assert.equal(connectionCode("100.1.2.3", 8787, "abc"), "ws://100.1.2.3:8787#abc");
 });

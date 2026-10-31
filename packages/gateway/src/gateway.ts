@@ -65,6 +65,11 @@ export class Gateway {
 
   // ---- 接続 ----
 
+  /** この Gateway の DB の識別子(端末が ack の位置の有効性を判断するのに使う)。 */
+  instanceId(): string {
+    return this.o.store.instanceId();
+  }
+
   /** 端末の接続を登録し、hello.ok と未 ack のイベントを送る。lastEventId までは処理済みとして削除する。 */
   attach(deviceId: string, link: DeviceLink, lastEventId?: string, instanceId?: string): number {
     this.links.set(deviceId, link);

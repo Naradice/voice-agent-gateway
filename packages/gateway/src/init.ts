@@ -2,6 +2,7 @@
 import { randomBytes } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { chmodSync, existsSync, writeFileSync } from "node:fs";
+import { connectionCode, tokenFingerprint } from "./connection.ts";
 
 export function newToken(): string {
   return randomBytes(32).toString("base64url");
@@ -59,6 +60,8 @@ if (isMain) {
   console.log(`${path} を作りました。`);
   console.log(`  待ち受け: ${host}:${arg("port") ?? 8787}${host === "127.0.0.1" ? "  (Tailscale の IP を取得できなかったため。VAG_HOST を編集してください)" : ""}`);
   console.log(`  デバイス: ${deviceId}`);
-  console.log(`  トークン: ${token}`);
-  console.log("このトークンを Android アプリの設定に入力してください。チャットやリポジトリには貼らないでください。");
+  console.log(`  確認コード: ${tokenFingerprint(token)}  (アプリの設定画面に出る確認コードと同じなら、トークンの入力は正しい)`);
+  console.log("\n接続コード(スマホにコピーして、アプリの「接続コードを貼り付け」で設定できる):");
+  console.log(connectionCode(host, Number(arg("port") ?? 8787), token));
+  console.log("\nこのコードにはトークンが含まれる。チャットやリポジトリには貼らないでください。後で表示し直すには: npm run gateway:code");
 }

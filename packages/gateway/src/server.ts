@@ -59,7 +59,14 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
     wss.handleUpgrade(req, socket, head, (ws) => wss.emit("connection", ws, req, deviceId));
   });
 
-  wss.on("connection", (ws: WebSocket, _req: IncomingMessage, deviceId: string) => {
+  wss.on("connection", (ws: WebSocket, req: IncomingMessage, deviceId: string) => {
+    // プローブ接続: 設定画面の「接続テスト」用。認証が通ることと Gateway の識別子だけを返してすぐ閉じる。
+    // 接続の置き換えも、未配信イベントの再送も行わない(本番の接続を追い出さない)。
+    if (new URL(req.url ?? "/", "http://localhost").searchParams.get("probe") === "1") {
+      ws.send(JSON.stringify({ type: "hello.ok", deviceId, serverTime: new Date().toISOString(), replay: 0, instanceId: o.gateway.instanceId() }));
+      ws.close(1000, "probe");
+      return;
+    }
     // 同じ端末の新しい接続が、古い接続を置き換える(再接続時に古い接続が残っていても詰まらない)。
     sockets.get(deviceId)?.close(4000, "replaced");
     sockets.set(deviceId, ws);
