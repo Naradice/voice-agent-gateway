@@ -43,12 +43,13 @@ export interface HistoryItem {
 export type AgentEvent =
   | { type: "turn.started"; sessionId: string }
   | { type: "message.delta"; sessionId: string; text: string }
-  | { type: "message.completed"; sessionId: string; text: string }
+  /** phase は Agent が付ける区別(Codex: "final_answer" / 途中経過など)。読み上げは final_answer を優先する */
+  | { type: "message.completed"; sessionId: string; text: string; phase?: string }
   /** Agentが承認等の応答を求めたが、Approval Manager 未実装のため拒否した(§9.2: 音声だけで承認させない) */
   | { type: "request.unhandled"; sessionId: string; method: string }
   | { type: "error"; sessionId: string; error: AgentError }
   /** 成功とは限らない。status と error を必ず見ること */
-  | { type: "turn.completed"; sessionId: string; status: "ok" | "error"; error?: AgentError };
+  | { type: "turn.completed"; sessionId: string; status: "ok" | "error" | "interrupted"; error?: AgentError };
 
 export interface AgentAdapter {
   readonly agentType: string;
@@ -59,6 +60,8 @@ export interface AgentAdapter {
   getSession(sessionId: string): Promise<AgentSession>;
   /** 読み取り専用。書き込み権を必要としない */
   readHistory(sessionId: string): Promise<HistoryItem[]>;
+  /** 新規セッションを作る。capabilities に create_session があるときのみ */
+  createSession?(title?: string): Promise<AgentSession>;
   /** 指示が受理された時点で解決する。結果は subscribe のイベントで届く */
   sendMessage(sessionId: string, text: string): Promise<void>;
   subscribe(sessionId: string, callback: (event: AgentEvent) => void): () => void;

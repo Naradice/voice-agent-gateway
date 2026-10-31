@@ -193,7 +193,7 @@ export class CodexAdapter implements AgentAdapter {
     }
   }
 
-  // 通知の params の形(delta のフィールド名など)は一部未検証。取れないときは空文字に倒す。
+  // 通知の形は実機の transcript で確認済み(delta / item.text / item.phase / turn.status)。
   private onServerMessage(sessionId: string, lease: Lease, m: ServerMessage, finish: (s: "ok" | "error", e?: AgentError) => void) {
     if (m.id !== undefined) {
       // 承認要求など、応答が必要なサーバー発リクエスト。形式が未検証なので承認せず、エラーで拒否する(fail-closed)。
@@ -209,7 +209,7 @@ export class CodexAdapter implements AgentAdapter {
         this.emit({ type: "message.delta", sessionId, text: String(m.params?.delta ?? m.params?.text ?? "") });
         break;
       case "item/completed":
-        if (m.params?.item?.type === "agentMessage") this.emit({ type: "message.completed", sessionId, text: textOf(m.params.item) ?? "" });
+        if (m.params?.item?.type === "agentMessage") this.emit({ type: "message.completed", sessionId, text: textOf(m.params.item) ?? "", phase: m.params.item.phase ?? undefined });
         break;
       case "error": {
         // turn/completed は失敗でも届く。error 通知を覚えておき、終了時の status に反映する。
@@ -217,9 +217,14 @@ export class CodexAdapter implements AgentAdapter {
         this.emit({ type: "error", sessionId, error: lease.lastError });
         break;
       }
-      case "turn/completed":
-        finish(lease.lastError ? "error" : "ok", lease.lastError);
+      case "turn/completed": {
+        // 実機の形: params.turn = { status: "completed", error: null, ... }。error 通知の後でも届くので両方見る。
+        const t = m.params?.turn;
+        const failed = (typeof t?.status === "string" && t.status !== "completed") || Boolean(t?.error);
+        const error = lease.lastError ?? (failed ? mapCodexError(new Error(String(t?.error?.message ?? `turn ${t?.status}`))) : undefined);
+        finish(error ? "error" : "ok", error);
         break;
+      }
     }
   }
 

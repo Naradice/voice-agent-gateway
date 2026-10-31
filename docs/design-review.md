@@ -139,9 +139,22 @@ final は未使用。dev は筆者が作成し、ルール追加も dev を見�
 | 承認要求など | サーバー発リクエストは拒否(fail-closed)し、`request.unhandled` で通知。Approval Manager 実装まで |
 | interrupt | API 名が未検証のため `unsupported`。capabilities に含めない |
 
-**未検証・仮定のまま入れている点**(実機の transcript で確認する):
-- `item/agentMessage/delta` の params のフィールド名(`delta` / `text` を仮定)。
-- `item/completed` の agentMessage 本文の位置(`item.text` または `item.content[].text` を仮定)。
+**実機の通信ログで確認済み:** `item/agentMessage/delta` は `params.delta`、`item/completed` の本文は `item.text`、agentMessage に `phase`(例 `final_answer`)あり、`turn/completed` は `params.turn.status` / `turn.error` で成否が分かる。`phase` は読み上げ対象の選別に使う(途中経過と最終回答の区別)。
+
+**未検証・仮定のまま入れている点**:
 - `thread/list` の `updatedAt` の単位(桁で秒/ミリ秒を判定)。
 - 利用上限・busy の判定は、観測した英語メッセージの正規表現。alpha 版で文言が変わりうるため、生メッセージを `cause` に保持。
 - 承認要求が来ない設定(自動審査)の場合、Gateway は承認を仲介できない。P0-08 の再開後に確認。
+
+## OpenAI Adapter と保存層 (packages/gateway)
+
+実際の OpenAI API には**まだ接続していない**(キーなし)。偽 fetch でテスト(10件)。
+
+- 会話の正本は Gateway の SQLite(`sessions`, `messages`, `usage`)。API へは毎回、直近 `maxHistoryMessages`(既定40)件の履歴を送り、`store:false` で OpenAI 側に保存させない(§9.3)。
+- ストリーミング: `response.output_text.delta` → `message.delta`、`response.completed` の usage を `usage` に記録(§6.2 のコスト記録)。**イベント名は公式ドキュメントに基づく仮定で、実APIでは未確認。**
+- エラー: 429 `insufficient_quota` → `usage_limit`(再試行不可)、401/403 → `unavailable`(再試行不可)、429(レート)・5xx → `unavailable`(再試行可)。受理前に失敗した場合は、保存した利用者発話を取り消す(再送で二重にならない)。
+- `interrupt` は通信を中断し、聞かせた分の途中回答を保存して `status:"interrupted"` を通知する。
+- Web 検索は既定オフ。`webSearch: true` で `tools:[{type:"web_search"}]` を送るが、**ツール名は未検証**(`webSearchToolType` で変更可)。
+- モデル名は必須オプション。既定値は置かない。
+- `node:sqlite` を使用(Node 22 の実験的機能。警告が出る。依存なし)。
+- 未実装: `session_summaries`(要約・Embedding)、`routing_decisions`、`pending_events`、履歴の保存期間・削除。

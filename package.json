@@ -9,7 +9,7 @@
     "p0a:hold": "node --experimental-strip-types packages/phase0a-codex-probe/src/probe-hold.ts --allow-write",
     "p0a:approval": "node --experimental-strip-types packages/phase0a-codex-probe/src/probe-approval.ts --allow-write",
     "p0b": "node --experimental-strip-types packages/phase0b-router-eval/src/run.ts",
-    "test": "node --experimental-strip-types --no-warnings --test packages/gateway/test/codex-adapter.test.ts",
+    "test": "node --experimental-strip-types --no-warnings --test packages/gateway/test/*.test.ts",
     "typecheck": "tsc --noEmit -p ."
   },
   "devDependencies": {

@@ -10,7 +10,7 @@ const send = (o) => process.stdout.write(JSON.stringify({ jsonrpc: "2.0", ...o }
 const notify = (method, params = {}) => send({ method, params });
 const thread = { id: "t1", name: "vag-probe-test", preview: "hello", updatedAt: 1761800000, status: { type: "notLoaded" } };
 
-const complete = () => notify("turn/completed", { turn: { id: "turn2" } });
+const complete = (status = "completed", error = null) => notify("turn/completed", { threadId: "t1", turn: { id: "turn2", status, error } });
 
 createInterface({ input: process.stdin }).on("line", (line) => {
   const m = JSON.parse(line);
@@ -42,10 +42,12 @@ createInterface({ input: process.stdin }).on("line", (line) => {
           notify("error", { message: "You've hit your usage limit. try again later" });
           return complete();
         }
+        if (mode === "failed_no_error_notification") return complete("failed", { message: "boom" });
         if (mode === "approval") return send({ id: 900, method: "item/commandExecution/requestApproval", params: {} });
         notify("item/agentMessage/delta", { delta: "O" });
         notify("item/agentMessage/delta", { delta: "K" });
-        notify("item/completed", { item: { type: "agentMessage", id: "i3", text: "OK" } });
+        notify("item/completed", { item: { type: "userMessage", id: "i9", content: [{ type: "text", text: "x" }] } });
+        notify("item/completed", { item: { type: "agentMessage", id: "i3", text: "OK", phase: "final_answer" } });
         complete();
       }, 10);
       return;

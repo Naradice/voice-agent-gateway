@@ -53,6 +53,8 @@ test("sendMessage: events stream, turn completes ok, lease is released before th
   assert.deepEqual(events.map((e) => e.type), ["turn.started", "message.delta", "message.delta", "message.completed", "turn.completed"]);
   const last = events.at(-1) as Extract<AgentEvent, { type: "turn.completed" }>;
   assert.equal(last.status, "ok");
+  const done_ = events.find((e) => e.type === "message.completed") as Extract<AgentEvent, { type: "message.completed" }>;
+  assert.deepEqual([done_.text, done_.phase], ["OK", "final_answer"]);
   assert.equal(adapter.activeLeaseCount, 0);
   assert.deepEqual(calls().filter((c) => /resume|turn\/start/.test(c)), ["thread/resume", "turn/start"]);
 });
@@ -74,6 +76,14 @@ test("usage limit: turn/completed after an error notification is reported as err
   assert.equal(last.error?.kind, "usage_limit");
   assert.equal(last.error?.retryable, false);
   assert.equal(adapter.activeLeaseCount, 0);
+});
+
+test("a failed turn without an error notification is still reported as error (turn.status)", async () => {
+  const { adapter } = setup("failed_no_error_notification");
+  const done = untilCompleted(adapter, "t1");
+  await adapter.sendMessage("t1", "hello");
+  const last = (await done).at(-1) as Extract<AgentEvent, { type: "turn.completed" }>;
+  assert.equal(last.status, "error");
 });
 
 test("server-initiated requests (approvals) are rejected fail-closed and surfaced", async () => {

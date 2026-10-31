@@ -43,4 +43,5 @@ export type AgentCapability =
   | "read_history"
   | "send_message"
   | "subscribe"
-  | "interrupt";
+  | "interrupt"
+  | "create_session";
