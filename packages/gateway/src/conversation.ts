@@ -11,6 +11,13 @@ export interface ConversationOptions {
   /** 履歴の文字数の上限。超えたら古いものから落とす(最新の発話は常に残す) */
   maxHistoryChars?: number;
   fetch?: typeof fetch;
+  /** Gateway 上の論理的な宛先名(ルーターの destination と一致させる)。バックエンドを替えても変わらない */
+  agentType?: string;
+  /**
+   * 発話から、このターンだけモデルに渡す補足文脈(検索結果など)を作る。undefined なら何も足さない。
+   * 補足文脈は履歴に保存しない。失敗しても会話は止めない(例外は無視して文脈なしで続行)。
+   */
+  grounding?: (text: string) => Promise<string | undefined>;
 }
 
 export interface ChatMessage { role: "user" | "assistant"; content: string }
@@ -20,6 +27,13 @@ export interface ParsedEvent {
   delta?: string;
   usage?: { inputTokens: number; outputTokens: number };
   error?: AgentError;
+}
+
+/** 1ターンのストリームを読む状態。思考タグの除去などターンをまたぐ状態はここに持つ。 */
+export interface TurnParser {
+  parse(ev: any): ParsedEvent;
+  /** ストリーム終了時に溜まっている末尾を返す */
+  flush?(): string;
 }
 
 interface InFlight { abort: AbortController; partial: string; interrupted: boolean }
@@ -42,8 +56,8 @@ export abstract class ConversationAdapter implements AgentAdapter {
 
   protected abstract endpoint(): string;
   protected abstract headers(): Record<string, string>;
-  protected abstract body(history: ChatMessage[]): unknown;
-  protected abstract parseEvent(ev: any): ParsedEvent;
+  protected abstract body(history: ChatMessage[], context?: string): unknown;
+  protected abstract createParser(): TurnParser;
   protected abstract httpError(res: Response): Promise<AgentError>;
   protected abstract connectError(): AgentError;
 
@@ -105,12 +119,17 @@ export abstract class ConversationAdapter implements AgentAdapter {
     this.inflight.set(sessionId, state);
     const rollback = () => { this.inflight.delete(sessionId); store.deleteMessage(userMsg.id); };
 
+    let context: string | undefined;
+    if (this.c.grounding) {
+      try { context = await this.c.grounding(text); } catch { /* 文脈なしで続行 */ }
+    }
+
     let res: Response;
     try {
       res = await (this.c.fetch ?? fetch)(this.endpoint(), {
         method: "POST",
         headers: this.headers(),
-        body: JSON.stringify(this.body(history)),
+        body: JSON.stringify(this.body(history, context)),
         signal: state.abort.signal,
       });
     } catch (e) {
@@ -132,9 +151,10 @@ export abstract class ConversationAdapter implements AgentAdapter {
     const { store } = this.c;
     let error: AgentError | undefined;
     this.emit({ type: "turn.started", sessionId });
+    const parser = this.createParser();
     try {
       for await (const ev of sseEvents(body)) {
-        const p = this.parseEvent(ev);
+        const p = parser.parse(ev);
         if (p.delta) {
           state.partial += p.delta;
           this.emit({ type: "message.delta", sessionId, text: p.delta });
@@ -144,6 +164,12 @@ export abstract class ConversationAdapter implements AgentAdapter {
       }
     } catch (e) {
       if (!state.interrupted) error = new AgentError("unavailable", "応答が途中で切れました", { cause: e });
+    }
+
+    const tail = parser.flush?.();
+    if (tail) {
+      state.partial += tail;
+      this.emit({ type: "message.delta", sessionId, text: tail });
     }
 
     // 解放してから通知する(受信側がすぐ次の指示を送れるように)。

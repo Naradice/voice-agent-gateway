@@ -4,7 +4,7 @@
   "utterance": "今日の天気は？",
   "currentSessionId": "gpt-daily",
   "expect": {
-   "destination": "openai",
+   "destination": "chat",
    "action": "create"
   }
  },
@@ -13,7 +13,7 @@
   "utterance": "こんにちは",
   "currentSessionId": "gpt-daily",
   "expect": {
-   "destination": "openai",
+   "destination": "chat",
    "action": "create"
   }
  },
@@ -22,7 +22,7 @@
   "utterance": "おすすめの夕飯を教えて",
   "currentSessionId": "codex-web",
   "expect": {
-   "destination": "openai",
+   "destination": "chat",
    "action": "create"
   }
  },
@@ -31,7 +31,7 @@
   "utterance": "明日の東京の気温は",
   "currentSessionId": "gpt-jepa",
   "expect": {
-   "destination": "openai",
+   "destination": "chat",
    "action": "create"
   }
  },
@@ -40,7 +40,7 @@
   "utterance": "JEPAの論文の要点をまとめて",
   "currentSessionId": "gpt-daily",
   "expect": {
-   "destination": "openai",
+   "destination": "chat",
    "sessionId": "gpt-jepa"
   }
  },
@@ -49,7 +49,7 @@
   "utterance": "表現学習の評価指標について相談したい",
   "currentSessionId": "gpt-daily",
   "expect": {
-   "destination": "openai",
+   "destination": "chat",
    "sessionId": "gpt-jepa"
   }
  },
@@ -85,7 +85,7 @@
   "utterance": "その話の続きを教えて",
   "currentSessionId": "gpt-jepa",
   "expect": {
-   "destination": "openai",
+   "destination": "chat",
    "sessionId": "gpt-jepa"
   }
  },
@@ -121,7 +121,7 @@
   "utterance": "それについてもう少し詳しく",
   "currentSessionId": "gpt-daily",
   "expect": {
-   "destination": "openai",
+   "destination": "chat",
    "sessionId": "gpt-daily"
   }
  },
@@ -130,7 +130,7 @@
   "utterance": "別の話だけど、おすすめの本は？",
   "currentSessionId": "gpt-jepa",
   "expect": {
-   "destination": "openai",
+   "destination": "chat",
    "action": "create"
   }
  },
@@ -148,7 +148,7 @@
   "utterance": "ところで来週の予定を考えたい",
   "currentSessionId": "codex-jepa",
   "expect": {
-   "destination": "openai",
+   "destination": "chat",
    "action": "create"
   }
  },
@@ -193,7 +193,7 @@
   "utterance": "ChatGPTにJEPAの論文の要点を聞いて",
   "currentSessionId": "codex-jepa",
   "expect": {
-   "destination": "openai",
+   "destination": "chat",
    "sessionId": "gpt-jepa"
   }
  },
@@ -211,7 +211,7 @@
   "utterance": "ChatGPTに雑談を頼んで",
   "currentSessionId": "codex-web",
   "expect": {
-   "destination": "openai"
+   "destination": "chat"
   }
  },
  {
@@ -264,7 +264,7 @@
   "utterance": "チャットGPTにJEPAの論文を聞いて",
   "currentSessionId": "codex-jepa",
   "expect": {
-   "destination": "openai",
+   "destination": "chat",
    "sessionId": "gpt-jepa"
   }
  },

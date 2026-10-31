@@ -1,5 +1,5 @@
 import { AgentError } from "../adapter.ts";
-import { ConversationAdapter, type ChatMessage, type ConversationOptions, type ParsedEvent } from "../conversation.ts";
+import { ConversationAdapter, type ChatMessage, type ConversationOptions, type ParsedEvent, type TurnParser } from "../conversation.ts";
 
 export interface OpenAIAdapterOptions extends ConversationOptions {
   apiKey: string;
@@ -16,29 +16,35 @@ export interface OpenAIAdapterOptions extends ConversationOptions {
  * ChatGPT 公式アプリの会話とは同期しない。イベント名は公式ドキュメントに基づく仮定で、実APIでは未確認。
  */
 export class OpenAIAdapter extends ConversationAdapter {
-  readonly agentType = "openai";
+  readonly agentType: string;
   private o: OpenAIAdapterOptions;
 
   constructor(opts: OpenAIAdapterOptions) {
     super(opts);
     this.o = opts;
+    this.agentType = opts.agentType ?? "openai";
   }
 
   protected endpoint() { return `${this.o.baseUrl ?? "https://api.openai.com/v1"}/responses`; }
   protected headers() { return { authorization: `Bearer ${this.o.apiKey}`, "content-type": "application/json" }; }
 
-  protected body(history: ChatMessage[]) {
+  protected body(history: ChatMessage[], context?: string) {
+    const instructions = [this.o.instructions, context].filter(Boolean).join("\n\n");
     return {
       model: this.o.model,
       input: history,
       stream: true,
       store: false, // 会話の正本は Gateway。OpenAI 側には保存させない
-      ...(this.o.instructions ? { instructions: this.o.instructions } : {}),
+      ...(instructions ? { instructions } : {}),
       ...(this.o.webSearch ? { tools: [{ type: this.o.webSearchToolType ?? "web_search" }] } : {}),
     };
   }
 
-  protected parseEvent(ev: any): ParsedEvent {
+  protected createParser(): TurnParser {
+    return { parse: (ev) => this.parseEvent(ev) };
+  }
+
+  private parseEvent(ev: any): ParsedEvent {
     if (ev.type === "response.output_text.delta" && typeof ev.delta === "string") return { delta: ev.delta };
     if (ev.type === "response.completed" && ev.response?.usage) {
       return { usage: { inputTokens: ev.response.usage.input_tokens ?? 0, outputTokens: ev.response.usage.output_tokens ?? 0 } };

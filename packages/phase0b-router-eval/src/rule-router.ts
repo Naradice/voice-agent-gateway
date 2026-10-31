@@ -3,7 +3,7 @@ import { keywordRetriever, type Retriever } from "./retrievers.ts";
 
 const AGENT_PATTERNS: [string, RegExp][] = [
   ["codex", /codex|コーデックス|コデックス|コデクス|コーデクス/i],
-  ["openai", /chat ?gpt|チャット ?gpt|チャットジーピーティー|openai/i],
+  ["chat", /chat ?gpt|チャット ?gpt|チャットジーピーティー|openai/i],
 ];
 const INTERRUPT = /止めて|やめて|ストップ|中断|キャンセル/;
 const READ_LATEST = /(返事|返信).*(読んで|聞かせて|教えて)|もう一度読んで/;
@@ -52,13 +52,13 @@ export class RuleRouter implements Router {
     if (READ_LATEST.test(utterance)) return this.control("read_latest", explicit, current, ctx);
 
     if (this.opts.confirmVague && VAGUE.test(utterance)) {
-      return { destination: current?.agentId ?? "openai", sessionId: current?.id, action: "confirm", reason: "vague reference", candidates: current ? [{ destination: current.agentId, sessionId: current.id }] : [] };
+      return { destination: current?.agentId ?? "chat", sessionId: current?.id, action: "confirm", reason: "vague reference", candidates: current ? [{ destination: current.agentId, sessionId: current.id }] : [] };
     }
     if (this.opts.confirmVague && TOPIC_CHANGE.test(utterance) && explicit) {
       return { destination: explicit, action: "confirm", reason: "topic change with explicit agent: new or existing session?", candidates: [{ destination: explicit }] };
     }
     if (TOPIC_CHANGE.test(utterance)) {
-      return { destination: explicit ?? "openai", action: "create", reason: "topic change marker" };
+      return { destination: explicit ?? "chat", action: "create", reason: "topic change marker" };
     }
 
     if (CONTINUE.test(utterance) && current && (!explicit || explicit === current.agentId)) {
@@ -96,7 +96,7 @@ export class RuleRouter implements Router {
     if (explicit) {
       return { destination: explicit, action: "confirm", reason: "explicit agent but no matching session", candidates: [{ destination: explicit }] };
     }
-    return this.guard(utterance, { destination: "openai", action: "create", reason: "no signal; default to general chat" });
+    return this.guard(utterance, { destination: "chat", action: "create", reason: "no signal; default to general chat" });
   }
 
   /** 割り込み/読み上げの対象: 明示Agentがあればその最新セッション、なければ現在のセッション。 */
@@ -104,7 +104,7 @@ export class RuleRouter implements Router {
     let target = explicit && current?.agentId !== explicit
       ? ctx.sessions.filter((s) => s.agentId === explicit).sort((a, b) => b.lastActiveAt.localeCompare(a.lastActiveAt))[0]
       : current;
-    if (!target) return { intent, destination: explicit ?? "openai", action: "confirm", reason: `${intent}: no target session` };
+    if (!target) return { intent, destination: explicit ?? "chat", action: "confirm", reason: `${intent}: no target session` };
     if (intent === "interrupt" && !target.capabilities.includes("interrupt")) {
       return { intent, destination: target.agentId, sessionId: target.id, action: "confirm", reason: "interrupt unsupported by target" };
     }

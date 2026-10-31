@@ -40,11 +40,11 @@ test("streams chat-completions deltas to Ollama's default endpoint, with no auth
   assert.deepEqual(events.map((e) => e.type), ["turn.started", "message.delta", "message.delta", "message.completed", "turn.completed"]);
   assert.equal(calls[0].url, "http://127.0.0.1:11434/v1/chat/completions");
   assert.equal(calls[0].headers.authorization, undefined);
-  assert.deepEqual(calls[0].body.messages, [{ role: "system", content: "be brief" }, { role: "user", content: "やあ" }]);
+  assert.deepEqual(calls[0].body.messages, [{ role: "system", content: "be brief\n\n/no_think" }, { role: "user", content: "やあ" }]);
   assert.equal(calls[0].body.stream, true);
   assert.deepEqual(store.messages(s.id).map((m) => m.text), ["やあ", "こんにちは"]);
   assert.deepEqual(store.usageTotals(), { inputTokens: 20, outputTokens: 4, requests: 1 });
-  assert.equal(s.id && (await adapter.listSessions())[0].agentId, "local");
+  assert.equal((await adapter.listSessions())[0].agentId, "chat");
 });
 
 test("old history is dropped by the character budget, but the latest message is always kept", async () => {
@@ -96,4 +96,48 @@ test("interrupt aborts a slow local generation", async () => {
   await new Promise((r) => setTimeout(r, 20));
   await adapter.interrupt(s.id);
   assert.equal(((await done).at(-1) as any).status, "interrupted");
+});
+
+test("<think> blocks are never emitted or stored, even when the tags are split across chunks", async () => {
+  const parts = ["<thi", "nk>\nまず考え", "る</th", "ink>\n\nこんにちは", "、元気です"];
+  const { adapter, store } = setup(() => streamOf(chunks(parts)));
+  const s = await adapter.createSession();
+  const done = untilCompleted(adapter, s.id);
+  await adapter.sendMessage(s.id, "やあ");
+  const events = await done;
+  const spoken = events.filter((e) => e.type === "message.delta").map((e: any) => e.text).join("");
+  assert.equal(spoken, "こんにちは、元気です");
+  assert.deepEqual(store.messages(s.id).map((m) => m.text), ["やあ", "こんにちは、元気です"]);
+});
+
+test("reasoning in a separate field is ignored; /no_think can be turned off", async () => {
+  const text = `data: ${JSON.stringify({ choices: [{ delta: { reasoning: "ひみつの思考" } }] })}\n\ndata: ${JSON.stringify({ choices: [{ delta: { content: "答え" } }] })}\n\n`;
+  const { adapter, calls } = setup(() => streamOf(text), { suppressThinking: false });
+  const s = await adapter.createSession();
+  const done = untilCompleted(adapter, s.id);
+  await adapter.sendMessage(s.id, "q");
+  const events = await done;
+  assert.equal(events.filter((e) => e.type === "message.delta").map((e: any) => e.text).join(""), "答え");
+  assert.ok(!calls[0].body.messages[0].content.includes("/no_think"));
+});
+
+test("grounding context goes into the system message for this turn only and is not stored", async () => {
+  const { adapter, store, calls } = setup(() => streamOf(chunks(["A"])), { grounding: async (t: string) => (t.includes("天気") ? "CTX-天気" : undefined) });
+  const s = await adapter.createSession();
+  for (const q of ["天気は？", "こんにちは"]) {
+    const done = untilCompleted(adapter, s.id);
+    await adapter.sendMessage(s.id, q);
+    await done;
+  }
+  assert.ok(calls[0].body.messages[0].content.includes("CTX-天気"));
+  assert.ok(!calls[1].body.messages[0].content.includes("CTX-天気"));
+  assert.ok(!store.messages(s.id).some((m) => m.text.includes("CTX")));
+});
+
+test("a throwing grounding function does not break the conversation", async () => {
+  const { adapter } = setup(() => streamOf(chunks(["A"])), { grounding: async () => { throw new Error("boom"); } });
+  const s = await adapter.createSession();
+  const done = untilCompleted(adapter, s.id);
+  await adapter.sendMessage(s.id, "天気は？");
+  assert.equal(((await done).at(-1) as any).status, "ok");
 });

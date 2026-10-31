@@ -9,7 +9,7 @@ Android の PTT 音声から ChatGPT(OpenAI API)や Codex などの Agent へ会
 |---|---|---|
 | `packages/shared` | Router / Session / Decision の共通型 | 完了 |
 | `packages/phase0b-router-eval` | オフライン評価ハーネス + ルールのみルーター(方式A) | 動作確認済(dev 36 / final 20。方式A系と TF-IDF 代用の比較) |
-| `packages/gateway` | `AgentAdapter` 共通インターフェース、`CodexAdapter`(貸し出し方式)、`LocalLLMAdapter`(日常会話の既定。Ollama 等の OpenAI 互換)、`OpenAIAdapter`(オプション)、履歴は SQLite。偽 app-server / 偽 fetch で26件のテスト | 骨格。実Codex・実LLMでは未実行 |
+| `packages/gateway` | `AgentAdapter` 共通インターフェース、`CodexAdapter`(貸し出し方式)、`LocalLLMAdapter`(日常会話の既定。Ollama 等の OpenAI 互換)、`OpenAIAdapter`(オプション)、履歴は SQLite。検索層(Brave / SearXNG)、偽 app-server / 偽 fetch で35件のテスト | 骨格。実Codex・実LLMでは未実行 |
 | `packages/phase0a-codex-probe` | Codex App Server プローブ(`probe.ts` 読み取り / `probe-write.ts` 書き込み) | 読み取りは Windows 実機で P0-01/02 合格。書き込みは未実行 |
 
 ## 実行
@@ -23,6 +23,8 @@ npm run p0a                      # Windows + Codex Desktop 上で実行(CODEX_BI
 #   PowerShell: $env:VAG_PROBE_THREAD_ID="<id>"; npm run p0a:write
 # 承認要求の検証(P0-08): 既定は decline。許可は $env:VAG_DECISION="accept"
 #   npm run p0a:approval
+# ローカルLLMの疎通確認(Windows。Ollama 起動済み): npm run smoke:local
+#   検索も試す: $env:SEARCH_PROVIDER="brave"; $env:BRAVE_API_KEY="..."  /  "searxng"; $env:SEARXNG_URL="http://127.0.0.1:8080"
 npm test                         # Gateway(偽 app-server によるテスト。Codex 不要)
 npm run typecheck
 ```

@@ -5,3 +5,8 @@ export { Store, type SessionRow, type StoredMessage } from "./store.ts";
 export { OpenAIAdapter, type OpenAIAdapterOptions } from "./openai/adapter.ts";
 export { ConversationAdapter } from "./conversation.ts";
 export { LocalLLMAdapter, type LocalLLMAdapterOptions } from "./local/adapter.ts";
+export { ThinkStripper } from "./local/think.ts";
+export * from "./search/types.ts";
+export { BraveSearch, type BraveOptions } from "./search/brave.ts";
+export { SearxngSearch, type SearxngOptions } from "./search/searxng.ts";
+export { createGrounding, needsSearch, formatResults, SEARCH_FAILED, type GroundingOptions } from "./search/grounding.ts";

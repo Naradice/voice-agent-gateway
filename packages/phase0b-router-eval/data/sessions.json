@@ -1,7 +1,7 @@
 [
   {
     "id": "gpt-jepa",
-    "agentId": "openai",
+    "agentId": "chat",
     "title": "JEPA研究相談",
     "summary": "JEPAの表現学習と評価設計についての議論",
     "keywords": [
@@ -49,7 +49,7 @@
   },
   {
     "id": "gpt-daily",
-    "agentId": "openai",
+    "agentId": "chat",
     "title": "雑談",
     "summary": "日常の質問",
     "keywords": [],

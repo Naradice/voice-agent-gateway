@@ -3,7 +3,7 @@
   "utterance": "明日の東京の天気を教えて",
   "currentSessionId": "codex-web",
   "expect": {
-   "destination": "openai",
+   "destination": "chat",
    "action": "create"
   },
   "category": "chat"
@@ -30,7 +30,7 @@
   "utterance": "話は変わるけど夕飯どうしよう",
   "currentSessionId": "codex-jepa",
   "expect": {
-   "destination": "openai",
+   "destination": "chat",
    "action": "create"
   },
   "category": "topic_change"
@@ -40,7 +40,7 @@
   "currentSessionId": "gpt-daily",
   "expect": {
    "mustConfirm": true,
-   "destination": "openai"
+   "destination": "chat"
   },
   "category": "ambiguous"
  },
@@ -57,7 +57,7 @@
   "utterance": "ChatGPTに表現学習の復習を頼んで",
   "currentSessionId": "codex-web",
   "expect": {
-   "destination": "openai",
+   "destination": "chat",
    "sessionId": "gpt-jepa"
   },
   "category": "research"
@@ -76,7 +76,7 @@
   "utterance": "今何時？",
   "currentSessionId": "codex-jepa",
   "expect": {
-   "destination": "openai",
+   "destination": "chat",
    "action": "create"
   }
  },
@@ -94,7 +94,7 @@
   "utterance": "論文の表現学習の部分を復習したい",
   "currentSessionId": "codex-web",
   "expect": {
-   "destination": "openai",
+   "destination": "chat",
    "sessionId": "gpt-jepa"
   }
  },
@@ -121,7 +121,7 @@
   "utterance": "別の話、今日の夕飯何にしよう",
   "currentSessionId": "codex-web",
   "expect": {
-   "destination": "openai",
+   "destination": "chat",
    "action": "create"
   }
  },
@@ -157,7 +157,7 @@
   "utterance": "ジェパの論文について聞きたい",
   "currentSessionId": "gpt-daily",
   "expect": {
-   "destination": "openai",
+   "destination": "chat",
    "mustConfirm": true
   }
  },

@@ -1,5 +1,6 @@
 import { AgentError } from "../adapter.ts";
-import { ConversationAdapter, type ChatMessage, type ConversationOptions, type ParsedEvent } from "../conversation.ts";
+import { ConversationAdapter, type ChatMessage, type ConversationOptions, type ParsedEvent, type TurnParser } from "../conversation.ts";
+import { ThinkStripper } from "./think.ts";
 
 export interface LocalLLMAdapterOptions extends ConversationOptions {
   /** OpenAI 互換エンドポイントの基点。既定は Ollama の http://127.0.0.1:11434/v1 */
@@ -10,6 +11,12 @@ export interface LocalLLMAdapterOptions extends ConversationOptions {
   instructions?: string;
   /** 追加の生成パラメータ(temperature 等)をそのまま本文に加える */
   extraBody?: Record<string, unknown>;
+  /**
+   * 推論モデル(Qwen3 など)の思考を抑える。既定 true。
+   * システム指示の末尾に /no_think を足し(Qwen3 のソフトスイッチ)、本文に出た <think>…</think> は必ず除去する。
+   * delta.reasoning 等の別フィールドは読まない。思考は読み上げの遅延と誤読の原因になる。
+   */
+  suppressThinking?: boolean;
 }
 
 /**
@@ -18,13 +25,14 @@ export interface LocalLLMAdapterOptions extends ConversationOptions {
  * このコードの実行基盤での実機確認はまだ。
  */
 export class LocalLLMAdapter extends ConversationAdapter {
-  readonly agentType = "local";
+  readonly agentType: string;
   private o: LocalLLMAdapterOptions;
 
   constructor(opts: LocalLLMAdapterOptions) {
     // ローカルモデルは文脈長が短いことが多く、溢れると古い履歴が黙って切り捨てられる。既定で文字数にも上限を置く。
     super({ maxHistoryChars: 8000, ...opts });
     this.o = opts;
+    this.agentType = opts.agentType ?? "chat";
   }
 
   protected endpoint() { return `${this.o.baseUrl ?? "http://127.0.0.1:11434/v1"}/chat/completions`; }
@@ -33,23 +41,33 @@ export class LocalLLMAdapter extends ConversationAdapter {
     return { "content-type": "application/json", ...(this.o.apiKey ? { authorization: `Bearer ${this.o.apiKey}` } : {}) };
   }
 
-  protected body(history: ChatMessage[]) {
+  protected body(history: ChatMessage[], context?: string) {
+    const system = [this.o.instructions, context, this.o.suppressThinking === false ? undefined : "/no_think"].filter(Boolean).join("\n\n");
     return {
       model: this.o.model,
-      messages: [...(this.o.instructions ? [{ role: "system", content: this.o.instructions }] : []), ...history],
+      messages: [...(system ? [{ role: "system", content: system }] : []), ...history],
       stream: true,
       stream_options: { include_usage: true },
       ...this.o.extraBody,
     };
   }
 
-  protected parseEvent(ev: any): ParsedEvent {
-    if (ev?.error) return { error: new AgentError("unavailable", String(ev.error?.message ?? ev.error), { retryable: true }) };
-    const out: ParsedEvent = {};
-    const delta = ev?.choices?.[0]?.delta?.content;
-    if (typeof delta === "string" && delta) out.delta = delta;
-    if (ev?.usage) out.usage = { inputTokens: ev.usage.prompt_tokens ?? 0, outputTokens: ev.usage.completion_tokens ?? 0 };
-    return out;
+  protected createParser(): TurnParser {
+    const strip = new ThinkStripper();
+    return {
+      parse: (ev: any): ParsedEvent => {
+        if (ev?.error) return { error: new AgentError("unavailable", String(ev.error?.message ?? ev.error), { retryable: true }) };
+        const out: ParsedEvent = {};
+        const raw = ev?.choices?.[0]?.delta?.content;
+        if (typeof raw === "string" && raw) {
+          const text = strip.push(raw);
+          if (text) out.delta = text;
+        }
+        if (ev?.usage) out.usage = { inputTokens: ev.usage.prompt_tokens ?? 0, outputTokens: ev.usage.completion_tokens ?? 0 };
+        return out;
+      },
+      flush: () => strip.flush(),
+    };
   }
 
   protected connectError() {
