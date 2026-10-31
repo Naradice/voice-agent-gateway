@@ -44,6 +44,8 @@ try {
       const at = `+${((n.at - t0) / 1000).toFixed(1)}s`;
       if (n.id === undefined) {
         if (!/mcpServer|tokenUsage|rateLimits|account\//.test(n.method)) console.log(`${at} [notification] ${n.method}`);
+        // turn/completed は成功を意味しない。エラー通知・自動審査・ターン結果は中身を出す(検証用の定型文のみ)。
+        if (/^error$|autoApprovalReview|turn\/(completed|failed|aborted)/.test(n.method)) console.log("  params:", JSON.stringify(n.params).slice(0, 600));
         seen.push(n.method);
         if (/turn\/(completed|failed|aborted)/.test(n.method)) { clearTimeout(timer); resolve(); }
         return;
