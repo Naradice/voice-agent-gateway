@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!--
+      このアプリは、利用者が設定した Gateway にだけ接続する。通信は Tailscale(WireGuard)で暗号化されている前提で、
+      ws:// を許可する。Tailscale を使わず公開ネットワークに出す場合は、wss:// にしてこの許可を外すこと。
+    -->
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>
