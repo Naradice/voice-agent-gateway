@@ -16,7 +16,12 @@ const model = process.env.LOCAL_MODEL ?? "qwen3:14b";
 const baseUrl = process.env.OLLAMA_BASE_URL ?? "http://127.0.0.1:11434/v1";
 const probeChars = Number(process.env.PROBE_CHARS ?? 6000);
 const contextTokens = Number(process.env.LOCAL_CONTEXT ?? 4096);
-const extraBody = process.env.LOCAL_EXTRA_BODY ? JSON.parse(process.env.LOCAL_EXTRA_BODY) : undefined;
+// Gateway の実運用の設定(.env の LOCAL_MAX_TOKENS)に合わせる。合わせないと、実際とは違う条件で測ることになる。
+const maxTokens = process.env.LOCAL_MAX_TOKENS ? Number(process.env.LOCAL_MAX_TOKENS) : undefined;
+const extraBody = {
+  ...(maxTokens ? { max_tokens: maxTokens } : {}),
+  ...(process.env.LOCAL_EXTRA_BODY ? JSON.parse(process.env.LOCAL_EXTRA_BODY) : {}),
+};
 
 const provider =
   process.env.SEARCH_PROVIDER === "brave" ? new BraveSearch({ apiKey: process.env.BRAVE_API_KEY ?? "" })

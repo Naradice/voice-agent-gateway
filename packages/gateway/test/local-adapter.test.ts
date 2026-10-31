@@ -178,3 +178,30 @@ test("extraBody max_tokens is sent so that replies stay short on slow CPUs", asy
   assert.equal(calls[0].body.max_tokens, 300);
   assert.equal(calls[0].body.reasoning_effort, "none", "思考を止める既定は維持される");
 });
+
+test("a closing think tag without an opening tag (empty thinking under /no_think) is removed, even split across chunks", async () => {
+  const parts = ["\n</thi", "nk>\n\nこんにちは", "。元気です。"];
+  const { adapter, store } = setup(() => streamOf(chunks(parts)));
+  const s = await adapter.createSession();
+  const done = untilCompleted(adapter, s.id);
+  await adapter.sendMessage(s.id, "やあ");
+  const spoken = (await done).filter((e) => e.type === "message.delta").map((e: any) => e.text).join("");
+  assert.equal(spoken, "こんにちは。元気です。");
+  assert.deepEqual(store.messages(s.id).map((m) => m.text), ["やあ", "こんにちは。元気です。"]);
+});
+
+test("replies are capped by default so that a runaway generation cannot last for minutes; the cap can be overridden", async () => {
+  const dflt = setup(() => streamOf(chunks(["A"])));
+  const s1 = await dflt.adapter.createSession();
+  const d1 = untilCompleted(dflt.adapter, s1.id);
+  await dflt.adapter.sendMessage(s1.id, "q");
+  await d1;
+  assert.equal(dflt.calls[0].body.max_tokens, 400);
+
+  const custom = setup(() => streamOf(chunks(["A"])), { extraBody: { max_tokens: 120 } });
+  const s2 = await custom.adapter.createSession();
+  const d2 = untilCompleted(custom.adapter, s2.id);
+  await custom.adapter.sendMessage(s2.id, "q");
+  await d2;
+  assert.equal(custom.calls[0].body.max_tokens, 120);
+});

@@ -3,6 +3,9 @@ import { ConversationAdapter, type ChatMessage, type ConversationOptions, type P
 import { ThinkStripper } from "./think.ts";
 import type { OllamaLifecycle } from "./lifecycle.ts";
 
+/** 返答の長さの既定の上限。音声の返答は短くてよく、上限がないと、思考の暴走などで数分間も生成し続けることがある。 */
+export const DEFAULT_MAX_TOKENS = 400;
+
 export interface LocalLLMAdapterOptions extends ConversationOptions {
   /** OpenAI 互換エンドポイントの基点。既定は Ollama の http://127.0.0.1:11434/v1 */
   baseUrl?: string;
@@ -74,6 +77,7 @@ export class LocalLLMAdapter extends ConversationAdapter {
       stream: true,
       stream_options: { include_usage: true },
       ...(this.o.suppressThinking === false ? {} : { reasoning_effort: "none" }),
+      ...(this.o.extraBody && ("max_tokens" in this.o.extraBody || "max_completion_tokens" in this.o.extraBody) ? {} : { max_tokens: DEFAULT_MAX_TOKENS }),
       ...this.o.extraBody, // 上書き可
     };
   }
