@@ -2,6 +2,9 @@
 // 思考(別フィールドまたは <think> タグ)と本文それぞれの量と到着時間を測る。各条件を2回実行し、2回目(ウォーム)を表示する。
 // 環境変数: LOCAL_MODEL(既定 qwen3:14b) OLLAMA_BASE_URL(既定 http://127.0.0.1:11434/v1)
 import { sseEvents } from "../src/openai/sse.ts";
+import { loadDotEnv } from "../src/env.ts";
+
+loadDotEnv();
 
 const model = process.env.LOCAL_MODEL ?? "qwen3:14b";
 const baseUrl = process.env.OLLAMA_BASE_URL ?? "http://127.0.0.1:11434/v1";

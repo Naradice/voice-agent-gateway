@@ -1,4 +1,5 @@
 // Gateway の起動。設定はすべて環境変数から読む(秘密情報をファイルやリポジトリに置かない)。
+//   設定はカレントディレクトリの .env からも読む(npm run gateway:init で作成。実際の環境変数が優先)。
 //   VAG_DEVICES   必須。[{"deviceId":"pixel","token":"24文字以上のランダム文字列"}]
 //   VAG_HOST      待ち受けアドレス。既定 127.0.0.1。Tailscale 経由なら Tailscale の IP(100.x.x.x)を指定する
 //   VAG_PORT      既定 8787
@@ -11,6 +12,8 @@ import { dirname } from "node:path";
 // 暫定: ルーターは評価用パッケージにある。安定したら独立したパッケージへ移す。
 import { RuleRouter } from "../../phase0b-router-eval/src/rule-router.ts";
 import { CodexAdapter } from "./codex/adapter.ts";
+import { checkHost, fail, jsonLog, parseDevices } from "./config.ts";
+import { loadDotEnv } from "./env.ts";
 import { Gateway } from "./gateway.ts";
 import { LocalLLMAdapter } from "./local/adapter.ts";
 import { OllamaLifecycle } from "./local/lifecycle.ts";
@@ -18,32 +21,15 @@ import { AdapterRegistry } from "./registry.ts";
 import { BraveSearch } from "./search/brave.ts";
 import { createGrounding } from "./search/grounding.ts";
 import { SearxngSearch } from "./search/searxng.ts";
-import { startServer, type DeviceCredential } from "./server.ts";
+import { startServer } from "./server.ts";
 import { Store } from "./store.ts";
 
+loadDotEnv();
 const env = process.env;
-const fail = (msg: string): never => { console.error(`起動できません: ${msg}`); process.exit(1); };
-
-function parseDevices(raw: string | undefined): DeviceCredential[] {
-  if (!raw) return fail("VAG_DEVICES が未設定です");
-  let list: unknown;
-  try { list = JSON.parse(raw); } catch { return fail("VAG_DEVICES が JSON ではありません"); }
-  if (!Array.isArray(list) || list.length === 0) return fail("VAG_DEVICES は1件以上の配列にしてください");
-  return list.map((d: any) => {
-    if (typeof d?.deviceId !== "string" || !/^[\w-]{1,32}$/.test(d.deviceId)) return fail("deviceId は英数字・_・- で32文字以内にしてください");
-    if (typeof d?.token !== "string" || d.token.length < 24) return fail(`デバイス ${d.deviceId} のトークンが短すぎます(24文字以上)`);
-    return { deviceId: d.deviceId, token: d.token };
-  });
-}
 
 const devices = parseDevices(env.VAG_DEVICES);
-const host = env.VAG_HOST ?? "127.0.0.1";
-if (["0.0.0.0", "::", ""].includes(host) && env.VAG_ALLOW_ANY_HOST !== "1") {
-  fail("全インターフェースでの待ち受けは既定で拒否します(§9.1)。Tailscale の IP を VAG_HOST に指定してください");
-}
-
-const log = (level: "info" | "warn" | "error", msg: string, meta: object = {}) =>
-  console.log(JSON.stringify({ t: new Date().toISOString(), level, msg, ...meta }));
+const host = checkHost(env.VAG_HOST ?? "127.0.0.1");
+const log = jsonLog;
 
 const dbPath = env.VAG_DB ?? "data/gateway.sqlite";
 mkdirSync(dirname(dbPath), { recursive: true });

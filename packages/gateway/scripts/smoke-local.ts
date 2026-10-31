@@ -8,6 +8,9 @@
 //           LOCAL_EXTRA_BODY(リクエスト本文に足す JSON。例 {"reasoning_effort":"none"})
 //           SEARCH_PROVIDER=brave|searxng, BRAVE_API_KEY / SEARXNG_URL
 import { BraveSearch, LocalLLMAdapter, SearxngSearch, Store, createGrounding, type AgentEvent } from "../src/index.ts";
+import { loadDotEnv } from "../src/env.ts";
+
+loadDotEnv();
 
 const model = process.env.LOCAL_MODEL ?? "qwen3:14b";
 const baseUrl = process.env.OLLAMA_BASE_URL ?? "http://127.0.0.1:11434/v1";

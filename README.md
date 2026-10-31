@@ -28,12 +28,9 @@ npm run p0a                      # Windows + Codex Desktop 上で実行(CODEX_BI
 # ローカルLLMの疎通確認(Windows。Ollama 起動済み): npm run smoke:local
 #   検索も試す: $env:SEARCH_PROVIDER="brave"; $env:BRAVE_API_KEY="..."  /  "searxng"; $env:SEARXNG_URL="http://127.0.0.1:8080"
 # ローカルLLMの状態確認・先読み・解放(GPU を空けたいとき): npm run llm -- status|warm|unload
-# Gateway の起動(Windows)。トークン生成: node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
-#   $env:VAG_DEVICES='[{"deviceId":"pixel","token":"<生成したトークン>"}]'; $env:VAG_HOST="<TailscaleのIP>"; npm run gateway
-#   cmd.exe の場合(PowerShell の $env: は使えない。値は引用符で囲まない):
-#     set VAG_DEVICES=[{"deviceId":"pixel","token":"<生成したトークン>"}]
-#     set VAG_HOST=<TailscaleのIP>   (tailscale ip -4 で確認)
-#     npm run gateway
+# Gateway の起動(初回): npm run gateway:init   → .env を作る(トークンを自動生成。Tailscale の IP を検出)
+#   以降: npm run gateway          設定は .env から読む(実際の環境変数が優先。.env はコミットされない)
+# Android 開発用のモック Gateway(Ollama・Codex 不要): npm run gateway:mock
 npm test                         # Gateway(偽 app-server によるテスト。Codex 不要)
 npm run typecheck
 ```

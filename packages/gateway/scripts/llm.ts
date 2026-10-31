@@ -2,6 +2,9 @@
 //   npm run llm -- status | warm | unload
 // 実験の前に `unload` すると GPU が空く。環境変数: LOCAL_MODEL(既定 qwen3:14b) OLLAMA_BASE_URL
 import { OllamaLifecycle } from "../src/index.ts";
+import { loadDotEnv } from "../src/env.ts";
+
+loadDotEnv();
 
 const model = process.env.LOCAL_MODEL ?? "qwen3:14b";
 const lifecycle = new OllamaLifecycle({ model, baseUrl: process.env.OLLAMA_BASE_URL });
