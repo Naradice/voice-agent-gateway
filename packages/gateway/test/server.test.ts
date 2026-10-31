@@ -206,3 +206,15 @@ test("a refused connection is logged with fingerprints of the presented and expe
   assert.ok(!text.includes(wrong) && !text.includes(TOKEN), "トークン本体はログに出さない");
   await server.close();
 });
+
+test("plain HTTP tells which gateway process answered and each device's token fingerprint, never a token", async () => {
+  const { server } = await boot();
+  const res = await fetch(`http://127.0.0.1:${server.port}/`);
+  const body = await res.text();
+  assert.equal(res.status, 426);
+  assert.match(body, /WebSocket required/);
+  assert.ok(body.includes(`pid=${process.pid}`));
+  assert.ok(body.includes(`device pixel: token fingerprint ${tokenFingerprint(TOKEN)}`));
+  assert.ok(!body.includes(TOKEN) && !body.includes("o".repeat(32)));
+  await server.close();
+});

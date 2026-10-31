@@ -64,7 +64,14 @@ const gateway = new Gateway({
   router: new RuleRouter({ name: "gateway", confirmVague: true, crossAgentConfirm: true }),
 });
 
-const server = await startServer({ gateway, devices, host, port: Number(env.VAG_PORT ?? 8787), log });
+const port = Number(env.VAG_PORT ?? 8787);
+const server = await startServer({ gateway, devices, host, port, log }).catch((e: NodeJS.ErrnoException) => {
+  if (e.code === "EADDRINUSE") {
+    return fail(`${host}:${port} は他のプロセスが使用中です。古い Gateway が動いたままではありませんか。` +
+      `\n  確認: netstat -ano | findstr :${port}   停止: taskkill /PID <PID> /F`);
+  }
+  throw e;
+});
 log("info", "gateway started", {
   host, port: server.port, agents: registry.list().map((a) => a.agentType), search: provider?.name ?? "off",
   envFile: dot.loaded ? dot.path : null,

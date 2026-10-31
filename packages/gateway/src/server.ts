@@ -42,8 +42,18 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
   const devices = o.devices.map((d) => ({ deviceId: d.deviceId, hash: sha256(d.token) }));
   const helloTimeoutMs = o.helloTimeoutMs ?? 5000;
 
+  // 通常の HTTP には、どの Gateway プロセスが答えているかを示す。古いプロセスが動いたままで、新しい設定が
+  // 反映されていない、という取り違えを、スマホのブラウザから見分けられる。トークン本体は含まない。
+  // 確認コード(24ビット)とデバイス名は、tailnet 内の接続元に見えるが、トークンの手がかりにならない。
+  const startedAt = new Date().toISOString();
   const http = createServer((_req, res) => {
-    res.writeHead(426, { "content-type": "text/plain" }).end("WebSocket required");
+    const lines = [
+      "WebSocket required",
+      "",
+      `voice-agent-gateway pid=${process.pid} started=${startedAt}`,
+      ...o.devices.map((d) => `device ${d.deviceId}: token fingerprint ${tokenFingerprint(d.token)}`),
+    ];
+    res.writeHead(426, { "content-type": "text/plain; charset=utf-8" }).end(lines.join("\n") + "\n");
   });
   const wss = new WebSocketServer({ noServer: true, maxPayload: o.maxPayload ?? 64 * 1024 });
   const sockets = new Map<string, WebSocket>();
