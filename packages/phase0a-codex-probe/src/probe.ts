@@ -7,7 +7,7 @@ import { spawn } from "node:child_process";
 import { createInterface } from "node:readline";
 import { writeFileSync, mkdirSync } from "node:fs";
 
-const METHODS = { initialize: "initialize", listThreads: "thread/list", readThread: "thread/read" } as const;
+const METHODS = { initialize: "initialize", listThreads: "thread/list", readThread: "thread/read", listTurns: "thread/turns/list", listItems: "thread/items/list" } as const;
 
 const child = spawn(process.env.CODEX_BIN ?? "codex", ["app-server"], { stdio: ["pipe", "pipe", "inherit"], shell: process.platform === "win32" });
 const pending = new Map<number, (r: { result?: unknown; error?: unknown }) => void>();
@@ -53,13 +53,23 @@ try {
   console.log("P0-01 enum values per thread", JSON.stringify(threads.map(pick)));
   const first = threads[0]?.id;
   if (first) {
-    const plain = await request(METHODS.readThread, { threadId: first });
-    console.log("P0-02 thread/read shape", JSON.stringify(shape(plain.result ?? plain.error)));
-    // 履歴(turns)を含めるオプションは未検証の仮定。エラーならスキーマ確認の手がかりになる。
-    const withTurns = await request(METHODS.readThread, { threadId: first, includeTurns: true });
-    console.log("P0-02 thread/read includeTurns shape", JSON.stringify(shape(withTurns.result ?? withTurns.error)));
-    console.log("P0-02 turns detail", JSON.stringify(shape(withTurns.result?.thread?.turns, 0, 6)));
-    console.log("P0-02 readState", JSON.stringify(withTurns.result?.readState));
+    // includeTurns は paginated スレッドでは非推奨(deprecationNotice)。正規ルートはページングAPI。
+    // パラメータ名は未検証の仮定。エラーメッセージはスキーマの手がかりになる。
+    const errText = (r: { error?: unknown }) => JSON.stringify(r.error).slice(0, 300);
+    const turns = await request(METHODS.listTurns, { threadId: first });
+    console.log("P0-02 thread/turns/list", turns.error ? `ERROR ${errText(turns)}` : JSON.stringify(shape(turns.result, 0, 4)));
+    const rows = turns.result?.data ?? turns.result?.turns ?? [];
+    console.log(`P0-02 turns=${rows.length} nextCursor=${JSON.stringify(turns.result?.nextCursor ?? null)}`);
+    const turnId = rows[0]?.id;
+    if (turnId) {
+      const items = await request(METHODS.listItems, { threadId: first, turnId });
+      console.log("P0-02 thread/items/list", items.error ? `ERROR ${errText(items)}` : JSON.stringify(shape(items.result, 0, 4)));
+      const arr: any[] = items.result?.data ?? items.result?.items ?? [];
+      const hist: Record<string, number> = {};
+      for (const it of arr) hist[it.type] = (hist[it.type] ?? 0) + 1;
+      console.log(`P0-02 items=${arr.length} (includeTurns では 78) nextCursor=${JSON.stringify(items.result?.nextCursor ?? null)} types=${JSON.stringify(hist)}`);
+    }
+    console.log("P0-02 readState", JSON.stringify((await request(METHODS.readThread, { threadId: first })).result?.readState));
   } else console.log("P0-02 skipped: no thread found");
 } catch (e) {
   console.error("probe failed:", (e as Error).message);
