@@ -141,3 +141,19 @@ test("a throwing grounding function does not break the conversation", async () =
   await adapter.sendMessage(s.id, "天気は？");
   assert.equal(((await done).at(-1) as any).status, "ok");
 });
+
+test("warns when the prompt nearly fills the configured context (silent truncation guard)", async () => {
+  const usage = `data: ${JSON.stringify({ choices: [{ delta: { content: "A" } }] })}\n\ndata: ${JSON.stringify({ choices: [], usage: { prompt_tokens: 4079, completion_tokens: 3 } })}\n\n`;
+  const { adapter } = setup(() => streamOf(usage), { contextTokens: 4096 });
+  const s = await adapter.createSession();
+  const done = untilCompleted(adapter, s.id);
+  await adapter.sendMessage(s.id, "q");
+  const w = (await done).find((e) => e.type === "warning") as Extract<AgentEvent, { type: "warning" }> | undefined;
+  assert.equal(w?.code, "context_nearly_full");
+
+  const quiet = setup(() => streamOf(chunks(["A"])), { contextTokens: 4096 }); // 20トークン: 警告なし
+  const s2 = await quiet.adapter.createSession();
+  const done2 = untilCompleted(quiet.adapter, s2.id);
+  await quiet.adapter.sendMessage(s2.id, "q");
+  assert.ok(!(await done2).some((e) => e.type === "warning"));
+});

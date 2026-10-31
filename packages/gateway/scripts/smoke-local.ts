@@ -4,12 +4,16 @@
 //   3. 検索設定があれば、検索 → 回答の流れ
 // 環境変数: LOCAL_MODEL(既定 qwen3:14b) OLLAMA_BASE_URL(既定 http://127.0.0.1:11434/v1)
 //           PROBE_CHARS(合言葉テストの履歴量。既定 6000)
+//           LOCAL_CONTEXT(サーバーに設定した文脈長。既定 4096。入力がこれに迫ると警告)
+//           LOCAL_EXTRA_BODY(リクエスト本文に足す JSON。例 {"reasoning_effort":"none"})
 //           SEARCH_PROVIDER=brave|searxng, BRAVE_API_KEY / SEARXNG_URL
 import { BraveSearch, LocalLLMAdapter, SearxngSearch, Store, createGrounding, type AgentEvent } from "../src/index.ts";
 
 const model = process.env.LOCAL_MODEL ?? "qwen3:14b";
 const baseUrl = process.env.OLLAMA_BASE_URL ?? "http://127.0.0.1:11434/v1";
 const probeChars = Number(process.env.PROBE_CHARS ?? 6000);
+const contextTokens = Number(process.env.LOCAL_CONTEXT ?? 4096);
+const extraBody = process.env.LOCAL_EXTRA_BODY ? JSON.parse(process.env.LOCAL_EXTRA_BODY) : undefined;
 
 const provider =
   process.env.SEARCH_PROVIDER === "brave" ? new BraveSearch({ apiKey: process.env.BRAVE_API_KEY ?? "" })
@@ -18,7 +22,7 @@ const provider =
 
 const store = new Store();
 const adapter = new LocalLLMAdapter({
-  store, model, baseUrl,
+  store, model, baseUrl, contextTokens, extraBody,
   instructions: "あなたは音声アシスタントです。短く、話し言葉で答えてください。コードや長いURLは読み上げません。",
   maxHistoryMessages: 1000,
   maxHistoryChars: 1_000_000, // 切り詰めはサーバー側で起きていないかを見たいので、Gateway 側では切らない
@@ -31,6 +35,7 @@ async function turn(sessionId: string, text: string) {
   let answer = "";
   const done = new Promise<AgentEvent>((resolve) => {
     const off = adapter.subscribe(sessionId, (e) => {
+      if (e.type === "warning") console.log(`  [警告] ${e.message}`);
       if (e.type === "message.delta") { first ??= Date.now() - t0; answer += e.text; }
       if (e.type === "turn.completed") { off(); resolve(e); }
     });
@@ -43,6 +48,13 @@ async function turn(sessionId: string, text: string) {
 const usageNow = () => store.usageTotals();
 
 console.log(`model=${model} base=${baseUrl}`);
+
+// 0. ウォームアップ(モデルの読み込み時間を計測から外す)
+{
+  const w = await adapter.createSession("warmup");
+  const r = await turn(w.id, "ひとこと返事して。");
+  console.log(`[0] ウォームアップ: 全体=${r.totalMs}ms(モデル読み込みを含む)`);
+}
 
 // 1. 短い応答
 {

@@ -11,6 +11,8 @@ export interface ConversationOptions {
   /** 履歴の文字数の上限。超えたら古いものから落とす(最新の発話は常に残す) */
   maxHistoryChars?: number;
   fetch?: typeof fetch;
+  /** サーバー側に設定されているモデルの文脈長(トークン)。入力がこれに迫ったら warning を出す。未指定なら検知しない */
+  contextTokens?: number;
   /** Gateway 上の論理的な宛先名(ルーターの destination と一致させる)。バックエンドを替えても変わらない */
   agentType?: string;
   /**
@@ -159,7 +161,13 @@ export abstract class ConversationAdapter implements AgentAdapter {
           state.partial += p.delta;
           this.emit({ type: "message.delta", sessionId, text: p.delta });
         }
-        if (p.usage) store.recordUsage({ sessionId, model: this.c.model, inputTokens: p.usage.inputTokens, outputTokens: p.usage.outputTokens });
+        if (p.usage) {
+          store.recordUsage({ sessionId, model: this.c.model, inputTokens: p.usage.inputTokens, outputTokens: p.usage.outputTokens });
+          const cap = this.c.contextTokens;
+          if (cap && p.usage.inputTokens >= cap * 0.9) {
+            this.emit({ type: "warning", sessionId, code: "context_nearly_full", message: `入力 ${p.usage.inputTokens} トークンが文脈長 ${cap} に迫っています。古い履歴が切られている可能性があります` });
+          }
+        }
         if (p.error) error = p.error;
       }
     } catch (e) {

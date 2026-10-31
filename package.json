@@ -11,6 +11,7 @@
     "p0b": "node --experimental-strip-types packages/phase0b-router-eval/src/run.ts",
     "test": "node --experimental-strip-types --no-warnings --test packages/gateway/test/*.test.ts",
     "smoke:local": "node --experimental-strip-types --no-warnings packages/gateway/scripts/smoke-local.ts",
+    "diagnose:thinking": "node --experimental-strip-types --no-warnings packages/gateway/scripts/diagnose-thinking.ts",
     "typecheck": "tsc --noEmit -p ."
   },
   "devDependencies": {
