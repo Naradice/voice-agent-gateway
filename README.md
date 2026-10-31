@@ -20,6 +20,8 @@ npm run p0b -- --split=final     # 最終評価(設定確定後に1回だけ)
 npm run p0a                      # Windows + Codex Desktop 上で実行(CODEX_BIN で実行ファイル指定可)
 # 書き込み試験: Desktop で名前が vag-probe で始まる専用スレッドを作り、そのIDを渡す
 #   PowerShell: $env:VAG_PROBE_THREAD_ID="<id>"; npm run p0a:write
+# 承認要求の検証(P0-08): 既定は decline。許可は $env:VAG_DECISION="accept"
+#   npm run p0a:approval
 npm run typecheck
 ```
 
