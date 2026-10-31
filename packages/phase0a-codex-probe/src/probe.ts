@@ -33,14 +33,28 @@ function request(method: string, params: unknown = {}, timeoutMs = 15000) {
   });
 }
 
+// 本文(プライバシー)は出力せず、構造だけ要約する。生データは out/transcript.json(gitignore済み)。
+const shape = (v: unknown, depth = 0): unknown => {
+  if (Array.isArray(v)) return `array(${v.length})` + (v.length && depth < 3 ? ` of ${JSON.stringify(shape(v[0], depth + 1))}` : "");
+  if (v && typeof v === "object") return depth >= 3 ? "object" : Object.fromEntries(Object.entries(v).map(([k, x]) => [k, shape(x, depth + 1)]));
+  return v === null ? "null" : typeof v === "string" ? `string(${v.length})` : typeof v;
+};
+
 try {
   const init = await request(METHODS.initialize, { clientInfo: { name: "vag-probe", version: "0.0.1" } });
-  console.log("P0-init", JSON.stringify(init).slice(0, 300));
+  console.log("init shape", JSON.stringify(shape(init.result)));
   const list = await request(METHODS.listThreads, {});
-  console.log("P0-01 thread list", JSON.stringify(list).slice(0, 600));
-  const first = list.result?.data?.[0]?.id ?? list.result?.threads?.[0]?.id;
-  if (first) console.log("P0-02 thread read", JSON.stringify(await request(METHODS.readThread, { threadId: first })).slice(0, 600));
-  else console.log("P0-02 skipped: no thread id found in list response (check schema)");
+  const threads = list.result?.data ?? [];
+  console.log(`P0-01 thread/list: ${threads.length} threads, nextCursor=${JSON.stringify(list.result?.nextCursor ?? null)}`);
+  console.log("P0-01 thread shape", JSON.stringify(shape(threads[0])));
+  const first = threads[0]?.id;
+  if (first) {
+    const plain = await request(METHODS.readThread, { threadId: first });
+    console.log("P0-02 thread/read shape", JSON.stringify(shape(plain.result ?? plain.error)));
+    // 履歴(turns)を含めるオプションは未検証の仮定。エラーならスキーマ確認の手がかりになる。
+    const withTurns = await request(METHODS.readThread, { threadId: first, includeTurns: true });
+    console.log("P0-02 thread/read includeTurns shape", JSON.stringify(shape(withTurns.result ?? withTurns.error)));
+  } else console.log("P0-02 skipped: no thread found");
 } catch (e) {
   console.error("probe failed:", (e as Error).message);
   process.exitCode = 1;
