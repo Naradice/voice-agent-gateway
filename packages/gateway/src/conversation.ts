@@ -93,7 +93,7 @@ export abstract class ConversationAdapter implements AgentAdapter {
     return () => { set.delete(callback); };
   }
 
-  private emit(e: AgentEvent): void {
+  protected emit(e: AgentEvent): void {
     for (const cb of this.subs.get(e.sessionId) ?? []) {
       try { cb(e); } catch { /* 購読側の例外で処理を止めない */ }
     }
@@ -186,7 +186,11 @@ export abstract class ConversationAdapter implements AgentAdapter {
     if (state.partial && !error) this.emit({ type: "message.completed", sessionId, text: state.partial, phase: "final_answer" });
     if (error) this.emit({ type: "error", sessionId, error });
     this.emit({ type: "turn.completed", sessionId, status: state.interrupted ? "interrupted" : error ? "error" : "ok", error: state.interrupted ? undefined : error });
+    this.onTurnEnd();
   }
+
+  /** ターン終了時のフック(派生クラスが必要なら上書きする)。待たずに実行され、失敗しても影響しない。 */
+  protected onTurnEnd(): void {}
 
   async interrupt(sessionId: string): Promise<void> {
     const s = this.inflight.get(sessionId);

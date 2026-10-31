@@ -52,6 +52,11 @@ export class OllamaLifecycle {
     return { loadMs: Date.now() - t0, status: await this.status() };
   }
 
+  /** 読み込み済みのモデルの常駐時間を、設定した keepAlive で更新する(使用後に呼ぶと、最後の使用から keepAlive 後に解放される)。 */
+  async touch(): Promise<void> {
+    await this.generate(this.o.keepAlive ?? "5m");
+  }
+
   /** 解放する。実験などで GPU を空けたいとき。 */
   async unload(): Promise<void> {
     await this.generate(0);

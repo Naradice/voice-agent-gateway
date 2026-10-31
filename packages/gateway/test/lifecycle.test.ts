@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { LocalLLMAdapter, OllamaLifecycle, Store } from "../src/index.ts";
+import { LocalLLMAdapter, OllamaLifecycle, Store, type AgentEvent } from "../src/index.ts";
 
 const json = (b: unknown, status = 200) => new Response(JSON.stringify(b), { status });
 
@@ -47,4 +47,34 @@ test("adapter.prepare warms the model and never throws when Ollama is down", asy
   const down = new LocalLLMAdapter({ store: new Store(), model: "m", lifecycle: new OllamaLifecycle({ model: "m", fetch: (async () => { throw new TypeError("fetch failed"); }) as typeof fetch }) });
   await assert.doesNotReject(down.prepare());
   await assert.doesNotReject(new LocalLLMAdapter({ store: new Store(), model: "m" }).prepare()); // lifecycle なしでも安全
+});
+
+const sseOf = (text: string) => new Response(new ReadableStream({ start(c) { c.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ choices: [{ delta: { content: text } }] })}\n\n`)); c.close(); } }));
+
+async function runTurn(loaded: boolean) {
+  const lc = fake((url) => (url.endsWith("/api/ps") ? json({ models: loaded ? [{ name: "m", size: 1, size_vram: 1 }] : [] }) : json({})));
+  const adapter = new LocalLLMAdapter({
+    store: new Store(), model: "m", fetch: (async () => sseOf("A")) as typeof fetch,
+    lifecycle: new OllamaLifecycle({ model: "m", keepAlive: "15m", fetch: lc.f }),
+  });
+  const s = await adapter.createSession();
+  const events: AgentEvent[] = [];
+  const done = new Promise<void>((resolve) => adapter.subscribe(s.id, (e) => { events.push(e); if (e.type === "turn.completed") resolve(); }));
+  await adapter.sendMessage(s.id, "q");
+  await done;
+  await new Promise((r) => setTimeout(r, 10)); // onTurnEnd は待たずに実行される
+  return { events, calls: lc.calls };
+}
+
+test("a cold model is announced with a status event before the turn starts", async () => {
+  const { events } = await runTurn(false);
+  assert.deepEqual(events.slice(0, 2).map((e) => e.type), ["status", "turn.started"]);
+  assert.equal((events[0] as any).code, "model_loading");
+});
+
+test("a loaded model produces no loading notice; the Gateway keep-alive is applied after each turn", async () => {
+  const { events, calls } = await runTurn(true);
+  assert.ok(!events.some((e) => e.type === "status"));
+  const touch = calls.find((c) => c.url.endsWith("/api/generate"));
+  assert.deepEqual(touch?.body, { model: "m", keep_alive: "15m" });
 });

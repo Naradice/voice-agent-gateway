@@ -48,6 +48,8 @@ export type AgentEvent =
   /** Agentが承認等の応答を求めたが、Approval Manager 未実装のため拒否した(§9.2: 音声だけで承認させない) */
   | { type: "request.unhandled"; sessionId: string; method: string }
   | { type: "error"; sessionId: string; error: AgentError }
+  /** 処理の状態の通知。例: model_loading(ローカルLLMの読み込み中。数十秒かかることがあるので、音声で伝えて無言で待たせない) */
+  | { type: "status"; sessionId: string; code: "model_loading"; message: string }
   /** 会話は続くが注意が必要なこと。例: context_nearly_full(入力がモデルの文脈長に迫り、古い履歴が黙って切られる恐れ) */
   | { type: "warning"; sessionId: string; code: "context_nearly_full"; message: string }
   /** 成功とは限らない。status と error を必ず見ること */

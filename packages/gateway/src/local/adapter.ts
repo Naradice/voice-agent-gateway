@@ -38,6 +38,21 @@ export class LocalLLMAdapter extends ConversationAdapter {
     this.agentType = opts.agentType ?? "chat";
   }
 
+  // 読み込み中なら先に知らせる(コールドスタートは数十秒かかることがある)。確認に失敗しても送信は続ける。
+  async sendMessage(sessionId: string, text: string): Promise<void> {
+    const lc = this.o.lifecycle;
+    if (lc) {
+      const st = await lc.status().catch(() => undefined);
+      if (st && !st.loaded) this.emit({ type: "status", sessionId, code: "model_loading", message: "モデルを起動しています。少しお待ちください" });
+    }
+    return super.sendMessage(sessionId, text);
+  }
+
+  // 使用のたびに Gateway 設定の常駐時間で解放時刻を更新する(Ollama の環境変数の既定値に頼らない)。
+  protected onTurnEnd(): void {
+    void this.o.lifecycle?.touch().catch(() => {});
+  }
+
   /** PTT が押されたとき等に呼ぶ。発話・音声認識の間にモデルの読み込みを済ませる(ベストエフォート)。 */
   async prepare(): Promise<void> {
     try { await this.o.lifecycle?.warm(); } catch { /* 読み込めなくても会話の要求時に再試行される */ }
