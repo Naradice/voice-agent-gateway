@@ -9,6 +9,7 @@ Android の PTT 音声から ChatGPT(OpenAI API)や Codex などの Agent へ会
 |---|---|---|
 | `packages/shared` | Router / Session / Decision の共通型 | 完了 |
 | `packages/phase0b-router-eval` | オフライン評価ハーネス + ルールのみルーター(方式A) | 動作確認済(dev 36 / final 20。方式A系と TF-IDF 代用の比較) |
+| `packages/gateway` | `AgentAdapter` 共通インターフェース、`CodexAdapter`(貸し出し方式)、レジストリ。偽 app-server で10件のテスト | 骨格。実Codexでは未実行 |
 | `packages/phase0a-codex-probe` | Codex App Server プローブ(`probe.ts` 読み取り / `probe-write.ts` 書き込み) | 読み取りは Windows 実機で P0-01/02 合格。書き込みは未実行 |
 
 ## 実行
@@ -22,6 +23,7 @@ npm run p0a                      # Windows + Codex Desktop 上で実行(CODEX_BI
 #   PowerShell: $env:VAG_PROBE_THREAD_ID="<id>"; npm run p0a:write
 # 承認要求の検証(P0-08): 既定は decline。許可は $env:VAG_DECISION="accept"
 #   npm run p0a:approval
+npm test                         # Gateway(偽 app-server によるテスト。Codex 不要)
 npm run typecheck
 ```
 

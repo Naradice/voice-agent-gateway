@@ -123,3 +123,25 @@ final は未使用。dev は筆者が作成し、ルール追加も dev を見�
 - 割り込み・読み上げ・高リスク語は、現データでは全件正しく処理(各2〜3件。母数が小さい)。
 
 未決: 許容する確認要求率、final での再現確認(閾値を決めてから1回だけ)、実Embeddingモデル、評価データの追加(実利用の発話ログに近いもの)。
+
+## AgentAdapter 骨格 (packages/gateway)
+
+実機で確認済みの挙動を元に実装し、偽 app-server でテスト(10件)。**実際の Codex ではまだ動かしていない。**
+
+確認済みの API に基づく部分: `initialize`, `thread/list`, `thread/read`, `thread/turns/list`, `thread/items/list`(カーソル), `thread/resume`, `turn/start`、通知 `turn/started`, `item/agentMessage/delta`, `item/completed`, `turn/completed`, `error`。
+
+| 項目 | 方針 |
+|---|---|
+| 読み取り | 呼び出しごとに短命の app-server。書き込み権を使わない(Desktop が開いていても読める) |
+| 送信 | 貸し出し: 起動 → resume → turn/start → turn/completed まで中継 → 終了。解放してから最終イベントを通知 |
+| ロック競合 | `busy`(再試行可)。turn/start は送らない |
+| 利用上限 | `usage_limit`(再試行不可)。error 通知を覚え、turn/completed を `status:"error"` にする |
+| 承認要求など | サーバー発リクエストは拒否(fail-closed)し、`request.unhandled` で通知。Approval Manager 実装まで |
+| interrupt | API 名が未検証のため `unsupported`。capabilities に含めない |
+
+**未検証・仮定のまま入れている点**(実機の transcript で確認する):
+- `item/agentMessage/delta` の params のフィールド名(`delta` / `text` を仮定)。
+- `item/completed` の agentMessage 本文の位置(`item.text` または `item.content[].text` を仮定)。
+- `thread/list` の `updatedAt` の単位(桁で秒/ミリ秒を判定)。
+- 利用上限・busy の判定は、観測した英語メッセージの正規表現。alpha 版で文言が変わりうるため、生メッセージを `cause` に保持。
+- 承認要求が来ない設定(自動審査)の場合、Gateway は承認を仲介できない。P0-08 の再開後に確認。
