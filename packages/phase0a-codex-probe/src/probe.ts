@@ -62,12 +62,30 @@ try {
     console.log(`P0-02 turns=${rows.length} nextCursor=${JSON.stringify(turns.result?.nextCursor ?? null)}`);
     const turnId = rows[0]?.id;
     if (turnId) {
-      const items = await request(METHODS.listItems, { threadId: first, turnId });
-      console.log("P0-02 thread/items/list", items.error ? `ERROR ${errText(items)}` : JSON.stringify(shape(items.result, 0, 4)));
-      const arr: any[] = items.result?.data ?? items.result?.items ?? [];
+      // ページングで全件取得(カーソルは不透明な文字列としてそのまま返す)
+      const paged: any[] = [];
+      let cursor: string | null = null;
+      for (let page = 1; page <= 20; page++) {
+        const r = await request(METHODS.listItems, { threadId: first, turnId, ...(cursor ? { cursor } : {}) });
+        if (r.error) { console.log(`P0-02 items page ${page} ERROR ${errText(r)}`); break; }
+        paged.push(...(r.result?.data ?? []));
+        console.log(`P0-02 items page ${page}: +${r.result?.data?.length ?? 0}, hasNext=${Boolean(r.result?.nextCursor)}`);
+        cursor = r.result?.nextCursor ?? null;
+        if (!cursor) break;
+      }
       const hist: Record<string, number> = {};
-      for (const it of arr) hist[it.type] = (hist[it.type] ?? 0) + 1;
-      console.log(`P0-02 items=${arr.length} (includeTurns では 78) nextCursor=${JSON.stringify(items.result?.nextCursor ?? null)} types=${JSON.stringify(hist)}`);
+      for (const it of paged) hist[it.item?.type] = (hist[it.item?.type] ?? 0) + 1;
+      const ts = paged.map((it) => it.startedAtMs as number);
+      const order = ts.every((t, i) => i === 0 || t >= ts[i - 1]) ? "ascending" : ts.every((t, i) => i === 0 || t <= ts[i - 1]) ? "descending" : "mixed";
+      const dup = paged.length - new Set(paged.map((it) => it.item?.id)).size;
+      console.log(`P0-02 paged items=${paged.length} order=${order} duplicates=${dup} types=${JSON.stringify(hist)}`);
+      // 非推奨の一括取得と ID 集合を照合(プローブ内の一回限りの検証)
+      const full = await request(METHODS.readThread, { threadId: first, includeTurns: true });
+      const fullIds = new Set<string>((full.result?.thread?.turns?.find((t: any) => t.id === turnId)?.items ?? []).map((i: any) => i.id));
+      const pagedIds = new Set<string>(paged.map((it) => it.item?.id));
+      const missing = [...fullIds].filter((i) => !pagedIds.has(i)).length;
+      const extra = [...pagedIds].filter((i) => !fullIds.has(i)).length;
+      console.log(`P0-02 cross-check: full=${fullIds.size} paged=${pagedIds.size} missingInPaged=${missing} extraInPaged=${extra}`);
     }
     console.log("P0-02 readState", JSON.stringify((await request(METHODS.readThread, { threadId: first })).result?.readState));
   } else console.log("P0-02 skipped: no thread found");
