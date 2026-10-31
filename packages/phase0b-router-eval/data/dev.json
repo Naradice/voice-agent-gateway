@@ -1,0 +1,14 @@
+[
+  { "utterance": "今日の天気は？", "currentSessionId": "gpt-daily", "expect": { "destination": "openai", "action": "create" } },
+  { "utterance": "その話の続きを教えて", "currentSessionId": "gpt-jepa", "expect": { "destination": "openai", "sessionId": "gpt-jepa" } },
+  { "utterance": "Codexにサイトのビルドを確認させて", "currentSessionId": "gpt-daily", "expect": { "destination": "codex", "sessionId": "codex-web" } },
+  { "utterance": "別の話だけど、おすすめの本は？", "currentSessionId": "gpt-jepa", "expect": { "destination": "openai", "action": "create" } },
+  { "utterance": "JEPAの実験について相談したい", "currentSessionId": "gpt-daily", "expect": { "mustConfirm": true, "destination": "codex" } },
+  { "utterance": "CodexでJEPAの学習ジョブのログを見て", "currentSessionId": "gpt-jepa", "expect": { "destination": "codex", "sessionId": "codex-jepa" } },
+  { "utterance": "ChatGPTにJEPAの論文の要点を聞いて", "currentSessionId": "codex-jepa", "expect": { "destination": "openai", "sessionId": "gpt-jepa" } },
+  { "utterance": "その話の続きでCodexに実装させて", "currentSessionId": "gpt-jepa", "expect": { "mustConfirm": true, "destination": "codex" } },
+  { "utterance": "Codexのサイトのリポジトリを削除して", "currentSessionId": "codex-web", "expect": { "mustConfirm": true, "destination": "codex" } },
+  { "utterance": "さっきの続きを", "currentSessionId": "codex-jepa", "expect": { "destination": "codex", "sessionId": "codex-jepa" } },
+  { "utterance": "実験結果を確認して", "currentSessionId": "gpt-daily", "expect": { "mustConfirm": true, "destination": "codex" } },
+  { "utterance": "こんにちは", "currentSessionId": "gpt-daily", "expect": { "destination": "openai", "action": "create" } }
+]

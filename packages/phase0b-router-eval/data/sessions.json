@@ -1,0 +1,6 @@
+[
+  { "id": "gpt-jepa", "agentId": "openai", "title": "JEPA研究相談", "summary": "JEPAの表現学習と評価設計についての議論", "keywords": ["JEPA", "表現学習", "論文"], "lastActiveAt": "2026-10-30T10:00:00Z", "capabilities": ["send_message"] },
+  { "id": "codex-jepa", "agentId": "codex", "title": "JEPA実験リポジトリ", "summary": "JEPA実験コードと学習ジョブ", "keywords": ["JEPA", "実験", "学習ジョブ", "ログ"], "lastActiveAt": "2026-10-30T12:00:00Z", "capabilities": ["send_message", "interrupt"] },
+  { "id": "codex-web", "agentId": "codex", "title": "個人サイト改修", "summary": "静的サイトのビルドとデザイン修正", "keywords": ["サイト", "ビルド", "CSS"], "lastActiveAt": "2026-10-29T09:00:00Z", "capabilities": ["send_message"] },
+  { "id": "gpt-daily", "agentId": "openai", "title": "雑談", "summary": "日常の質問", "keywords": [], "lastActiveAt": "2026-10-31T08:00:00Z", "capabilities": ["send_message"] }
+]
