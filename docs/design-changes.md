@@ -73,3 +73,22 @@
 - **`/no_think` は Ollama の `/v1` では思考を止めなかった。** `reasoning_effort:"none"` が効く。初回トークン 12 秒の主因は、見えない思考の生成だったと考えられる(smoke の初回トークンは見える本文までを測る)。
 - 既定で `reasoning_effort:"none"` を送る(`suppressThinking:false` で無効化、`extraBody` で上書き可)。思考を持たないモデルでは拒否される可能性があり、未確認。
 - GPU を実験と共有すると、読み込み 29 秒・生成が遅くなる。実験中の対話応答は遅くなり、実験側にも負荷をかける。
+
+## WebSocket 層 (2026-10-31)
+
+実装: `server.ts`(Connection Manager)、`gateway.ts`(司令塔)、`protocol.ts`、`speech.ts`(Speech Formatter)、`catalog.ts`。仕様は `docs/protocol.md`。
+偽 Adapter・偽 app-server・偽 fetch でテスト(Gateway 18 + サーバー 8 + 読み上げ 6 件)。Ollama なしで起動し WebSocket から接続して、`ローカルLLMに接続できません` が再試行可能な拒否として返ることを確認した。**実際の Android 端末、Ollama、Codex を通した確認はまだ。**
+
+設計判断:
+- **認証:** 接続時の `Authorization: Bearer`(デバイスごとのトークン、24文字以上)。常時比較(全デバイスと比較)で時間差を出さない。待ち受けは既定 127.0.0.1。`0.0.0.0` は明示しない限り拒否(§9.1)。TLS はなし(Tailscale の暗号化を前提)。
+- **重複排除と結果不明 (§8.4):** `requestId` ごとに状態を SQLite に記録(`received → dispatching → accepted/failed`)。重複は前回の結果を返すだけで再実行しない。外部 Agent に触れる直前に `dispatching` を書き、起動時に実行中のまま残っていた要求は `indeterminate` にする。**Gateway だけでは外部 Agent への Exactly-Once は保証できない**ので、自動再実行はしない。
+- **イベントの再送:** 読み上げ要求は保存してから送る。`ack` または `hello.lastEventId` で削除。保持 24 時間。一時的な通知(モデル起動中)は保存しない。
+- **読み上げ:** チャットは文単位でストリーミング(体感遅延を減らす)。Codex は途中の発言(`phase≠final_answer`)を読まず、最終回答だけを `high` で読む。1ターンの上限 600 文字(全文は履歴に残る)。コードブロックは読まない。
+- **エラー:** Adapter のエラー種別を、読み上げ可能な日本語と retryable に変換。ターンの失敗は `critical`。Codex の承認要求は承認せず「パソコンで確認してください」。
+- **ルーターの入力:** 各 Adapter のセッション一覧(30秒キャッシュ。1つの Agent の失敗で他を止めない)。キーワードはタイトルから文字種で抽出する暫定実装 → `session_summaries` による置き換えが必要。ルーターは評価用パッケージからの暫定 import(A2 相当の設定)。
+- **記録:** `routing_decisions` に発話とルーティング判定を保存する(誤配送率の実測用)。**発話本文が残る**ので、保存期間と削除方法の設定が未実装(§9.3 の宿題)。
+
+未実装・未決:
+- 音声による確認の回答(「2番」「キャンセル」)の解釈。現状は端末が添字を送る。
+- 認証トークンの発行・失効の手順(現状は環境変数)。レート制限なし。
+- Android 側の実装。`routing_decisions` の保存期間設定。`session_summaries`。Codex の割り込み。

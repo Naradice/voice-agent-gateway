@@ -2,7 +2,9 @@
   "name": "voice-agent-gateway",
   "private": true,
   "type": "module",
-  "workspaces": ["packages/*"],
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
     "p0a": "node --experimental-strip-types packages/phase0a-codex-probe/src/probe.ts",
     "p0a:write": "node --experimental-strip-types packages/phase0a-codex-probe/src/probe-write.ts --allow-write",
@@ -13,10 +15,15 @@
     "smoke:local": "node --experimental-strip-types --no-warnings packages/gateway/scripts/smoke-local.ts",
     "diagnose:thinking": "node --experimental-strip-types --no-warnings packages/gateway/scripts/diagnose-thinking.ts",
     "llm": "node --experimental-strip-types --no-warnings packages/gateway/scripts/llm.ts",
+    "gateway": "node --experimental-strip-types --no-warnings packages/gateway/src/main.ts",
     "typecheck": "tsc --noEmit -p ."
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
-    "typescript": "^5.6.0"
+    "typescript": "^5.6.0",
+    "@types/ws": "^8.18.2"
+  },
+  "dependencies": {
+    "ws": "^8.22.0"
   }
 }

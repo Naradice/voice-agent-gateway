@@ -1,7 +1,7 @@
 # Voice Agent Gateway
 
 Android の PTT 音声から ChatGPT(OpenAI API)や Codex などの Agent へ会話を振り分ける Gateway。
-設計: `docs/design.md`(元設計書 v0.1 を置く場所)、変更点: `docs/design-changes.md`、所見: `docs/design-review.md`。
+設計: `docs/design.md`(元設計書 v0.1 を置く場所)、変更点: `docs/design-changes.md`、所見: `docs/design-review.md`、**Android 向けプロトコル仕様: `docs/protocol.md`**。
 
 ## 現状: Phase 0A / 0B の着手
 
@@ -9,7 +9,7 @@ Android の PTT 音声から ChatGPT(OpenAI API)や Codex などの Agent へ会
 |---|---|---|
 | `packages/shared` | Router / Session / Decision の共通型 | 完了 |
 | `packages/phase0b-router-eval` | オフライン評価ハーネス + ルールのみルーター(方式A) | 動作確認済(dev 36 / final 20。方式A系と TF-IDF 代用の比較) |
-| `packages/gateway` | `AgentAdapter` 共通インターフェース、`CodexAdapter`(貸し出し方式)、`LocalLLMAdapter`(日常会話の既定。Ollama 等の OpenAI 互換)、`OpenAIAdapter`(オプション)、履歴は SQLite。検索層(Brave / SearXNG)、偽 app-server / 偽 fetch で35件のテスト | 骨格。実Codex・実LLMでは未実行 |
+| `packages/gateway` | `AgentAdapter` 共通インターフェース、`CodexAdapter`(貸し出し方式)、`LocalLLMAdapter`(日常会話の既定。Ollama 等の OpenAI 互換)、`OpenAIAdapter`(オプション)、履歴は SQLite。検索層(Brave / SearXNG)、WebSocket サーバー(認証・再接続・再送)、読み上げ整形。偽 Adapter / 偽 app-server / 偽 fetch で76件のテスト | 骨格。実Codex・実LLMでは未実行 |
 | `packages/phase0a-codex-probe` | Codex App Server プローブ(`probe.ts` 読み取り / `probe-write.ts` 書き込み) | 読み取りは Windows 実機で P0-01/02 合格。書き込みは未実行 |
 
 ## 実行
@@ -26,6 +26,8 @@ npm run p0a                      # Windows + Codex Desktop 上で実行(CODEX_BI
 # ローカルLLMの疎通確認(Windows。Ollama 起動済み): npm run smoke:local
 #   検索も試す: $env:SEARCH_PROVIDER="brave"; $env:BRAVE_API_KEY="..."  /  "searxng"; $env:SEARXNG_URL="http://127.0.0.1:8080"
 # ローカルLLMの状態確認・先読み・解放(GPU を空けたいとき): npm run llm -- status|warm|unload
+# Gateway の起動(Windows)。トークン生成: node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
+#   $env:VAG_DEVICES='[{"deviceId":"pixel","token":"<生成したトークン>"}]'; $env:VAG_HOST="<TailscaleのIP>"; npm run gateway
 npm test                         # Gateway(偽 app-server によるテスト。Codex 不要)
 npm run typecheck
 ```

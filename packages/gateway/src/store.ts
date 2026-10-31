@@ -20,6 +20,10 @@ export interface StoredMessage {
   createdAt: string;
 }
 
+export type RequestState = "received" | "dispatching" | "awaiting_confirmation" | "accepted" | "failed" | "cancelled" | "indeterminate";
+
+export interface RequestRecord { state: RequestState; result?: any; createdAt: string }
+
 export interface UsageTotals { inputTokens: number; outputTokens: number; requests: number }
 
 export class Store {
@@ -41,6 +45,21 @@ export class Store {
       CREATE TABLE IF NOT EXISTS usage (
         id INTEGER PRIMARY KEY AUTOINCREMENT, session_id TEXT, model TEXT NOT NULL,
         input_tokens INTEGER NOT NULL, output_tokens INTEGER NOT NULL, created_at TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS pending_events (
+        seq INTEGER PRIMARY KEY AUTOINCREMENT, device_id TEXT NOT NULL, payload TEXT NOT NULL, created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS pending_events_device ON pending_events(device_id, seq);
+      CREATE TABLE IF NOT EXISTS requests (
+        device_id TEXT NOT NULL, request_id TEXT NOT NULL, state TEXT NOT NULL, result TEXT, created_at TEXT NOT NULL,
+        PRIMARY KEY (device_id, request_id)
+      );
+      CREATE TABLE IF NOT EXISTS device_state (
+        device_id TEXT PRIMARY KEY, current_session_id TEXT
+      );
+      CREATE TABLE IF NOT EXISTS routing_decisions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, device_id TEXT NOT NULL, request_id TEXT NOT NULL,
+        utterance TEXT NOT NULL, decision TEXT NOT NULL, created_at TEXT NOT NULL
       );
       PRAGMA foreign_keys = ON;
     `);
@@ -99,6 +118,67 @@ export class Store {
   usageTotals(): UsageTotals {
     const r: any = this.db.prepare("SELECT COALESCE(SUM(input_tokens),0) i, COALESCE(SUM(output_tokens),0) o, COUNT(*) n FROM usage").get();
     return { inputTokens: r.i, outputTokens: r.o, requests: r.n };
+  }
+
+  // --- 未配信イベント (§8.4): 保存 → 配信 → 端末が ack したら削除 ---
+
+  appendEvent(deviceId: string, payload: object): number {
+    const r = this.db.prepare("INSERT INTO pending_events (device_id, payload, created_at) VALUES (?,?,?)")
+      .run(deviceId, JSON.stringify(payload), new Date().toISOString());
+    return Number(r.lastInsertRowid);
+  }
+
+  /** seq より後の未 ack イベントを古い順に返す。 */
+  eventsAfter(deviceId: string, seq: number): { seq: number; payload: any }[] {
+    return this.db.prepare("SELECT seq, payload FROM pending_events WHERE device_id = ? AND seq > ? ORDER BY seq")
+      .all(deviceId, seq).map((r: any) => ({ seq: r.seq, payload: JSON.parse(r.payload) }));
+  }
+
+  ackThrough(deviceId: string, seq: number): void {
+    this.db.prepare("DELETE FROM pending_events WHERE device_id = ? AND seq <= ?").run(deviceId, seq);
+  }
+
+  pruneEvents(olderThan: string): void {
+    this.db.prepare("DELETE FROM pending_events WHERE created_at < ?").run(olderThan);
+  }
+
+  // --- 要求の記録 (§8.4): requestId による重複排除と、結果不明の検出 ---
+
+  getRequest(deviceId: string, requestId: string): RequestRecord | undefined {
+    const r: any = this.db.prepare("SELECT * FROM requests WHERE device_id = ? AND request_id = ?").get(deviceId, requestId);
+    return r ? { state: r.state, result: r.result ? JSON.parse(r.result) : undefined, createdAt: r.created_at } : undefined;
+  }
+
+  putRequest(deviceId: string, requestId: string, state: RequestState, result?: unknown): void {
+    this.db.prepare(`INSERT INTO requests (device_id, request_id, state, result, created_at) VALUES (?,?,?,?,?)
+      ON CONFLICT(device_id, request_id) DO UPDATE SET state = excluded.state, result = excluded.result`)
+      .run(deviceId, requestId, state, result === undefined ? null : JSON.stringify(result), new Date().toISOString());
+  }
+
+  /** 起動時に呼ぶ。実行中だった要求は、外部Agentに届いたか分からないので「結果不明」にする。 */
+  markInterruptedRequestsIndeterminate(): number {
+    const r = this.db.prepare("UPDATE requests SET state = 'indeterminate' WHERE state IN ('received','dispatching')").run();
+    return Number(r.changes);
+  }
+
+  pruneRequests(olderThan: string): void {
+    this.db.prepare("DELETE FROM requests WHERE created_at < ? AND state NOT IN ('received','dispatching','awaiting_confirmation')").run(olderThan);
+  }
+
+  getCurrentSession(deviceId: string): string | undefined {
+    const r: any = this.db.prepare("SELECT current_session_id FROM device_state WHERE device_id = ?").get(deviceId);
+    return r?.current_session_id ?? undefined;
+  }
+
+  setCurrentSession(deviceId: string, sessionId: string | undefined): void {
+    this.db.prepare("INSERT INTO device_state (device_id, current_session_id) VALUES (?,?) ON CONFLICT(device_id) DO UPDATE SET current_session_id = excluded.current_session_id")
+      .run(deviceId, sessionId ?? null);
+  }
+
+  /** ルーティング判定の記録。誤配送率の実測(Phase 0B)に使う。発話本文を含むので保存期間に注意。 */
+  recordRouting(deviceId: string, requestId: string, utterance: string, decision: unknown): void {
+    this.db.prepare("INSERT INTO routing_decisions (device_id, request_id, utterance, decision, created_at) VALUES (?,?,?,?,?)")
+      .run(deviceId, requestId, utterance, JSON.stringify(decision), new Date().toISOString());
   }
 
   close(): void {
