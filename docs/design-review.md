@@ -56,7 +56,9 @@ dev は 12 件と少なく、統計的結論は出さない。ケースの拡充
 |---|---|---|
 | P0-01 既存スレッドの発見 | 合格 | `thread/list` で Desktop の 13 スレッドを取得(`source: vscode`) |
 | P0-02 履歴の正確な取得 | 合格(限定付き) | 1 スレッド・1 ターンで、ページング取得 78 件が一括取得と ID 集合で完全一致(欠落0・余剰0・重複0)。複数ターンのスレッド、本文と Desktop 表示の一致は未確認 |
-| P0-03〜06, 07, 08 | 未検証 | `npm run p0a:write` で専用検証スレッドを使って検証する |
+| P0-03 同一スレッドへの追記 | **失敗(別プロセス)** | 別の `app-server` から `thread/resume` すると `thread ... already has an active writer`(code -32600)。書き込み権を持つプロセスは1つだけ。履歴は無変更 |
+| P0-05 排他・競合制御 | 一部確認 | Codex 側のロックが二重書き込みを拒否する。誰が保持しているか、いつ解放されるかは未確認 |
+| P0-04, 06, 07, 08 | 未検証 | 上記の切り分け後 |
 
 分かったこと(API 仕様):
 - 全スレッドが `historyMode: "paginated"`。`thread/read` の `includeTurns` は非推奨で、`thread/turns/list` と `thread/items/list` をページングして読む。カーソルは不透明な JSON 文字列でそのまま返す。
@@ -65,3 +67,10 @@ dev は 12 件と少なく、統計的結論は出さない。ケースの拡充
 - 全スレッドが `notLoaded`。プローブの app-server は Desktop とは別プロセスで、同じスレッドを読めている。
 - `readState.revision` が存在する(競合検出に使えるかは P0-05 で確認)。`canAcceptDirectInput` は全スレッドで null。
 - cliVersion が 0.155〜0.164 alpha と混在。alpha 版のため API が変わりうる。Adapter でバージョンを記録して変更を検知する。
+
+### 書き込み試験の暫定所見 (2026-10-31)
+
+- 読み取り専用の別プロセスは成立するが、別プロセスからの書き込みは active writer ロックで拒否された。現時点の判定は B〜C(切り分け待ち)。
+- 切り分けの案: (A) Desktop 起動中で、対象スレッドを開いていない状態 (B) Desktop 完全終了 (C) Desktop 自身が持つ app-server / remote control 機能への接続(`remoteControl/status/changed` 通知あり。公開仕様は未確認)。
+- 非公式な内部データ書き換え(rollout ファイル直接編集など)は行わない(設計書 §10.3)。
+- 判定が C の場合は、決定事項 1 に従い読み取り専用 + 引継ぎ資料での新規セッション移行とする。

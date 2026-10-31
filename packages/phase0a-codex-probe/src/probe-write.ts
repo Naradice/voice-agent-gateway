@@ -57,6 +57,8 @@ try {
   // スレッドをこのプロセスにロードする(未検証の仮定: thread/resume)
   const resume = await srv.request("thread/resume", { threadId });
   console.log("thread/resume", resume.error ? `ERROR ${errText(resume)}` : "ok", JSON.stringify(resume.result?.thread?.status ?? null));
+  // 他プロセスが書き込み権(active writer)を持つ場合などは、ここで中止して何も送らない。
+  if (resume.error) throw new Error("thread/resume failed; nothing was sent");
 
   // 指示の追記(未検証の仮定: turn/start + input[])
   const sentAt = Date.now();
