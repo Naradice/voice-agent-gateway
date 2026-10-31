@@ -168,3 +168,13 @@ test("warns when the prompt nearly fills the configured context (silent truncati
   await quiet.adapter.sendMessage(s2.id, "q");
   assert.ok(!(await done2).some((e) => e.type === "warning"));
 });
+
+test("extraBody max_tokens is sent so that replies stay short on slow CPUs", async () => {
+  const { adapter, calls } = setup(() => streamOf(chunks(["A"])), { extraBody: { max_tokens: 300 } });
+  const s = await adapter.createSession();
+  const done = untilCompleted(adapter, s.id);
+  await adapter.sendMessage(s.id, "q");
+  await done;
+  assert.equal(calls[0].body.max_tokens, 300);
+  assert.equal(calls[0].body.reasoning_effort, "none", "思考を止める既定は維持される");
+});

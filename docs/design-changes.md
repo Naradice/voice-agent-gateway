@@ -102,3 +102,16 @@
 - **設定の永続化:** Gateway は `.env` から設定を読む(`npm run gateway:init` でトークンを自動生成して作成。実際の環境変数が優先。`.env` はコミットされない)。
 - **Android 開発用のモック Gateway:** `npm run gateway:mock`。Ollama・Codex なしで、本物のルーター・重複排除・再送を通して、台本どおりの応答を返す。
 - 未決: 確認要求への音声回答は、いまは次の PTT で受ける(自動で聞き始めない=マイクは PTT のときだけ、という方針による)。走行中の運用として妥当かは実機で評価する。
+
+### 会話モデルを GPU に載せない (2026-10-31)
+**背景:** 会話モデル(qwen3:14b)が VRAM を占有し、同じ GPU を使う他の実験がメモリ不足で止まった。実験を優先する。
+**決定:** 会話モデルは CPU とメモリだけで動かす。モデルは `qwen3:4b` に下げる(メモリは目安で 2.5GB 前後。実際の値は `ollama ps` で確認)。
+
+構成:
+- **CPU 専用の Ollama を別ポート(11435)で起動する:** `npm run ollama:cpu`。`CUDA_VISIBLE_DEVICES=-1`(AMD は `ROCR_VISIBLE_DEVICES` / `HIP_VISIBLE_DEVICES` も)で GPU を見えなくする(Ollama の公式の手順)。待ち受けは `127.0.0.1` のみ、並列数とロード数は 1。普段使いの Ollama(GPU)には影響しない。モデルのファイルは共有される。
+- **優先度を下げて起動する**(`VAG_CPU_PRIORITY=normal` で無効)。実験の CPU を奪わない代わりに、実験が CPU を使い切っていると応答が遅くなる。
+- **Gateway の `.env`:** `OLLAMA_BASE_URL=http://127.0.0.1:11435/v1`、`LOCAL_MODEL=qwen3:4b`、`LOCAL_DEVICE=cpu`、`LOCAL_HISTORY_CHARS=3000`(CPU は長い履歴の処理が遅い)、`LOCAL_MAX_TOKENS=300`(返答を短く打ち切る)。`npm run gateway:init` が新規の `.env` にこの構成を書く。
+- **確認:** `npm run llm -- warm`。`LOCAL_DEVICE=cpu` のとき、「CPU のみで動いています(想定どおり)」なら成功。GPU を使っていれば「要確認」と、直し方が出る。
+
+**未検証(実機の CPU での測定が必要):** 生成速度とレイテンシ。`npm run smoke:local` が「速度の目安(トークン/秒)」を出す。音声には 5 トークン/秒以上が欲しい。足りなければ `qwen3:1.7b` など更に小さいモデルへ、余裕があれば `qwen3:8b` へ。日本語の応答の質は、サイズを下げると落ちる。
+**注意:** 検索結果を使う質問は、毎回システム指示が変わるため、前の会話の計算結果が再利用されにくく、CPU では遅くなる。

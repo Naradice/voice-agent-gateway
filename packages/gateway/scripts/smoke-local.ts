@@ -62,9 +62,13 @@ console.log(`model=${model} base=${baseUrl}`);
 // 1. 短い応答
 {
   const s = await adapter.createSession("smoke");
+  const before = usageNow().outputTokens;
   const r = await turn(s.id, "こんにちは。一言で自己紹介して。");
+  const generated = usageNow().outputTokens - before;
+  const genSeconds = ((r.totalMs - (r.firstMs ?? 0)) / 1000) || 0.001;
   console.log("\n[1] 短い応答");
   console.log(`  status=${r.status} 初回トークン=${r.firstMs}ms 全体=${r.totalMs}ms`);
+  console.log(`  生成 ${generated} トークン、速度の目安 ≈ ${(generated / genSeconds).toFixed(1)} トークン/秒(音声には 5 以上が欲しい。足りなければ小さいモデルへ)`);
   console.log(`  回答: ${r.answer}`);
   if (r.error) console.log(`  エラー: ${r.error.kind} ${r.error.message}`);
   console.log(`  思考タグの混入: ${/<\/?think>/.test(r.answer) ? "あり(要調査)" : "なし"}  使用: ${JSON.stringify(usageNow())}`);

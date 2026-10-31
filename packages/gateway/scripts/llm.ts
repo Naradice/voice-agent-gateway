@@ -2,6 +2,7 @@
 //   npm run llm -- status | warm | unload
 // 実験の前に `unload` すると GPU が空く。環境変数: LOCAL_MODEL(既定 qwen3:14b) OLLAMA_BASE_URL
 import { OllamaLifecycle } from "../src/index.ts";
+import { deviceVerdict, type Device } from "../src/local/cpu.ts";
 import { loadDotEnv } from "../src/env.ts";
 
 loadDotEnv();
@@ -10,11 +11,12 @@ const model = process.env.LOCAL_MODEL ?? "qwen3:14b";
 const lifecycle = new OllamaLifecycle({ model, baseUrl: process.env.OLLAMA_BASE_URL });
 const cmd = process.argv[2] ?? "status";
 
+// LOCAL_DEVICE=cpu のとき、GPU を使っていたら警告する(実験のために GPU を空けておく構成の確認)
+const expected: Device = process.env.LOCAL_DEVICE === "cpu" ? "cpu" : "gpu";
 const show = (s: Awaited<ReturnType<OllamaLifecycle["status"]>>) => {
-  if (!s.loaded) return console.log(`${model}: 解放済み(GPU を使っていません)`);
-  const gb = (n?: number) => (n === undefined ? "?" : (n / 1024 ** 3).toFixed(1) + "GB");
-  console.log(`${model}: 読み込み中 VRAM=${gb(s.vramBytes)} / 全体=${gb(s.sizeBytes)} (GPU ${s.gpuFraction === undefined ? "?" : Math.round(s.gpuFraction * 100)}%) 解放予定=${s.expiresAt ?? "?"}`);
-  if (s.gpuFraction !== undefined && s.gpuFraction < 1) console.log("  注意: 一部が CPU で動いています。GPU が他の用途で埋まっていると遅くなります。");
+  const v = deviceVerdict(s, expected);
+  console.log(`${model}: ${v.message}${v.ok ? "" : "  <-- 要確認"}`);
+  if (s.loaded && s.expiresAt) console.log(`  解放予定: ${s.expiresAt}`);
 };
 
 if (cmd === "warm") {

@@ -49,10 +49,23 @@ const provider =
   : env.SEARCH_PROVIDER === "searxng" ? new SearxngSearch({ baseUrl: env.SEARXNG_URL ?? "http://127.0.0.1:8080" })
   : undefined;
 
+// 数値の設定(未設定なら undefined)。不正な値は起動時に止める。
+const intEnv = (name: string): number | undefined => {
+  const raw = env[name];
+  if (raw === undefined || raw === "") return undefined;
+  const n = Number(raw);
+  return Number.isInteger(n) && n > 0 ? n : fail(`${name} は正の整数にしてください(現在: ${raw})`);
+};
+const historyChars = intEnv("LOCAL_HISTORY_CHARS");
+const maxTokens = intEnv("LOCAL_MAX_TOKENS");
+
 const registry = new AdapterRegistry();
 registry.register(new LocalLLMAdapter({
   store, model, baseUrl: ollama,
   contextTokens: env.LOCAL_CONTEXT ? Number(env.LOCAL_CONTEXT) : undefined,
+  // CPU は長い履歴の処理が遅い。履歴を短くし、返答も短く打ち切る(音声向け)。
+  ...(historyChars ? { maxHistoryChars: historyChars } : {}),
+  ...(maxTokens ? { extraBody: { max_tokens: maxTokens } } : {}),
   instructions: "あなたは音声アシスタントです。短く、話し言葉で答えてください。コードや長いURLは読み上げません。",
   lifecycle: new OllamaLifecycle({ model, baseUrl: ollama, keepAlive: env.VAG_KEEP_ALIVE ?? "10m" }),
   grounding: provider && createGrounding({
