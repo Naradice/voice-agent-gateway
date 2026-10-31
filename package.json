@@ -5,6 +5,7 @@
   "workspaces": ["packages/*"],
   "scripts": {
     "p0a": "node --experimental-strip-types packages/phase0a-codex-probe/src/probe.ts",
+    "p0a:write": "node --experimental-strip-types packages/phase0a-codex-probe/src/probe-write.ts --allow-write",
     "p0b": "node --experimental-strip-types packages/phase0b-router-eval/src/run.ts",
     "typecheck": "tsc --noEmit -p ."
   },

@@ -49,3 +49,19 @@ dev は 12 件と少なく、統計的結論は出さない。ケースの拡充
 
 - `phase0a-codex-probe` の App Server メソッド名(`thread/list` 等)は **未検証**。この環境に Codex が無く実行していない。
   Windows 実機で公式スキーマと突き合わせること。
+
+## Phase 0A 実測結果 (Windows 実機, Codex Desktop / app-server)
+
+| ID | 結果 | 根拠・限定 |
+|---|---|---|
+| P0-01 既存スレッドの発見 | 合格 | `thread/list` で Desktop の 13 スレッドを取得(`source: vscode`) |
+| P0-02 履歴の正確な取得 | 合格(限定付き) | 1 スレッド・1 ターンで、ページング取得 78 件が一括取得と ID 集合で完全一致(欠落0・余剰0・重複0)。複数ターンのスレッド、本文と Desktop 表示の一致は未確認 |
+| P0-03〜06, 07, 08 | 未検証 | `npm run p0a:write` で専用検証スレッドを使って検証する |
+
+分かったこと(API 仕様):
+- 全スレッドが `historyMode: "paginated"`。`thread/read` の `includeTurns` は非推奨で、`thread/turns/list` と `thread/items/list` をページングして読む。カーソルは不透明な JSON 文字列でそのまま返す。
+- アイテムは `{turnId, item:{type,id,...}}` の入れ子。種別は userMessage / agentMessage / commandExecution / webSearch / reasoning / fileChange を確認。
+- 返却順は `startedAtMs` 昇順とは限らない(`order=mixed`)。API の返却順を使い、時刻で並べ直さない。
+- 全スレッドが `notLoaded`。プローブの app-server は Desktop とは別プロセスで、同じスレッドを読めている。
+- `readState.revision` が存在する(競合検出に使えるかは P0-05 で確認)。`canAcceptDirectInput` は全スレッドで null。
+- cliVersion が 0.155〜0.164 alpha と混在。alpha 版のため API が変わりうる。Adapter でバージョンを記録して変更を検知する。
