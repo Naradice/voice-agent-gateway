@@ -1,3 +1,6 @@
+/** Ollama はタグのないモデル名に :latest を付けて返す(例 qwen3-4b-cpu → qwen3-4b-cpu:latest)。照合のために揃える。 */
+export const withTag = (name: string): string => (name.includes(":") ? name : `${name}:latest`);
+
 export interface OllamaLifecycleOptions {
   model: string;
   /** Ollama の基点。/v1 付き(OpenAI互換側)を渡しても、末尾の /v1 を除いてネイティブAPIに使う。既定 http://127.0.0.1:11434 */
@@ -64,7 +67,8 @@ export class OllamaLifecycle {
 
   async status(): Promise<ModelStatus> {
     const j = await this.call("/api/ps");
-    const m = (j?.models ?? []).find((x: any) => x.name === this.o.model || x.model === this.o.model);
+    const want = withTag(this.o.model);
+    const m = (j?.models ?? []).find((x: any) => withTag(String(x.name ?? "")) === want || withTag(String(x.model ?? "")) === want);
     if (!m) return { loaded: false };
     return {
       loaded: true,

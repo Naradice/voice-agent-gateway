@@ -38,6 +38,7 @@ const watch = (stream: NodeJS.ReadableStream, out: NodeJS.WriteStream) => {
       if (d.gpu && !warned) {
         warned = true;
         console.error("\n[警告] この Ollama は GPU を検出しています。CUDA_VISIBLE_DEVICES=-1 などによる無効化が効いていません。");
+        console.error(`  検出されたバックエンド: ${d.library}${d.device ? `(${d.device})` : ""}`);
         console.error("  このままでは、モデルが GPU に載ります。代わりに、モデルの側で GPU を使わせない派生モデルを作ってください:");
         console.error(`    npm run ollama:model     → ${cpuModelName(process.env.LOCAL_MODEL ?? "qwen3:4b")} を作る。.env の LOCAL_MODEL をそれに変える\n`);
       }

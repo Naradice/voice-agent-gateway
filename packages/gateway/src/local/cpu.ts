@@ -55,11 +55,14 @@ export function deviceVerdict(s: ModelStatus, expected: Device): { ok: boolean; 
  * Ollama の起動ログから、GPU が検出されたかを判定する。CPU 専用のつもりで起動したのに GPU が見つかっていれば、
  * 環境変数による無効化が効いていない。ログの形式はバージョンで違うため、library= の値で緩く判定する。
  */
-export function detectGpuInLog(line: string): { gpu: boolean; cpu: boolean } {
+export function detectGpuInLog(line: string): { gpu: boolean; cpu: boolean; library?: string; device?: string } {
   const lib = /\blibrary=("?)(\w+)\1/i.exec(line)?.[2]?.toLowerCase();
   if (/inference compute/i.test(line) || lib) {
     if (lib === "cpu") return { gpu: false, cpu: true };
-    if (lib && ["cuda", "rocm", "hip", "metal", "vulkan", "oneapi", "sycl"].includes(lib)) return { gpu: true, cpu: false };
+    if (lib && ["cuda", "rocm", "hip", "metal", "vulkan", "oneapi", "sycl"].includes(lib)) {
+      const device = /\b(?:name|description)="?([^"=]+?)"?(?:\s+\w+=|$)/i.exec(line)?.[1]?.trim();
+      return { gpu: true, cpu: false, library: lib, device };
+    }
   }
   return { gpu: false, cpu: false };
 }

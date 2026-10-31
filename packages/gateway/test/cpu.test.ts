@@ -44,9 +44,12 @@ test("detectGpuInLog recognises GPU and CPU-only startup lines in the formats of
   const cudaOld = 'level=INFO source=gpu.go:217 msg="inference compute" id=GPU-abcd library=cuda variant=v12 compute=8.6 driver=12.4';
   const rocm = 'msg="inference compute" id=0 library=rocm compute=gfx1100 name=Radeon';
   const cpu = 'time=... level=INFO source=types.go:60 msg="inference compute" id=cpu library=cpu compute="" name=cpu description=cpu';
-  assert.deepEqual(detectGpuInLog(cuda), { gpu: true, cpu: false });
-  assert.deepEqual(detectGpuInLog(cudaOld), { gpu: true, cpu: false });
-  assert.deepEqual(detectGpuInLog(rocm), { gpu: true, cpu: false });
+  assert.deepEqual(detectGpuInLog(cuda), { gpu: true, cpu: false, library: "cuda", device: "CUDA0" });
+  assert.equal(detectGpuInLog(cudaOld).library, "cuda");
+  assert.deepEqual(detectGpuInLog(rocm), { gpu: true, cpu: false, library: "rocm", device: "Radeon" });
+  const vulkan = 'msg="inference compute" id=GPU-9 library=Vulkan name="AMD Radeon(TM) Graphics" total="4.0 GiB"';
+  assert.equal(detectGpuInLog(vulkan).library, "vulkan", "CUDA 以外の経路で検出された場合も、バックエンド名が分かる");
+  assert.equal(detectGpuInLog(vulkan).device, "AMD Radeon(TM) Graphics");
   assert.deepEqual(detectGpuInLog(cpu), { gpu: false, cpu: true });
   assert.deepEqual(detectGpuInLog("level=INFO msg=\"Listening on 127.0.0.1:11435\""), { gpu: false, cpu: false });
 });

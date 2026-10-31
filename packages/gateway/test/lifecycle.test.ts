@@ -78,3 +78,17 @@ test("a loaded model produces no loading notice; the Gateway keep-alive is appli
   const touch = calls.find((c) => c.url.endsWith("/api/generate"));
   assert.deepEqual(touch?.body, { model: "m", keep_alive: "15m" });
 });
+
+test("status finds a model whose name has no tag, because Ollama reports it as name:latest", async () => {
+  const { f } = fake(() => json({ models: [{ name: "qwen3-4b-cpu:latest", model: "qwen3-4b-cpu:latest", size: 2.6e9, size_vram: 0 }] }));
+  const s = await new OllamaLifecycle({ model: "qwen3-4b-cpu", fetch: f }).status();
+  assert.equal(s.loaded, true, "タグなしで設定しても、読み込み中と判定される");
+  assert.equal(s.gpuFraction, 0);
+
+  // 別のモデルと取り違えない
+  const other = fake(() => json({ models: [{ name: "qwen3-4b-cpu:latest", size: 1, size_vram: 0 }] }));
+  assert.equal((await new OllamaLifecycle({ model: "qwen3:4b", fetch: other.f }).status()).loaded, false);
+  // タグを明示した設定は、そのまま一致する
+  const tagged = fake(() => json({ models: [{ name: "qwen3:4b", size: 1, size_vram: 1 }] }));
+  assert.equal((await new OllamaLifecycle({ model: "qwen3:4b", fetch: tagged.f }).status()).loaded, true);
+});
