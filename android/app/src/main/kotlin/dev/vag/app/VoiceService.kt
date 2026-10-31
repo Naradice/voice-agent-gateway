@@ -1,17 +1,24 @@
 package dev.vag.app
 
+import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.media.AudioManager
+import android.media.ToneGenerator
+import android.media.session.MediaSession
+import android.media.session.PlaybackState
+import android.os.Build
 import android.os.IBinder
+import android.view.KeyEvent
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
+import dev.vag.core.VoiceState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
@@ -20,30 +27,58 @@ import kotlinx.coroutines.launch
  * 画面を閉じる・ロックしても、Gateway からの読み上げを受け取り続けるためのフォアグラウンドサービス(設計書 §3.4)。
  * マイクの種類で起動する。Android 14 以降は、アプリが見えている状態で起動する必要がある(MainActivity から開始する)。
  * PTT 待機中はマイクを使わない(音声認識を始めたときだけ使う)。
+ *
+ * 画面を見ずに話し始めるための入口(いずれも実機での確認が必要な第一版):
+ * - 通知の「話す」ボタン(ロック画面の通知にも出す)
+ * - イヤホンのボタン(再生/一時停止・ヘッドセットボタン)。MediaSession でメディアキーを受け取る
+ * - 聞き始めのビープ音(画面を見なくても、聞き始めたことが分かる)
  */
 class VoiceService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
-    private var job: Job? = null
+    private var mediaSession: MediaSession? = null
+    private var tone: ToneGenerator? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
         super.onCreate()
         val nm = getSystemService(NotificationManager::class.java)
-        nm.createNotificationChannel(NotificationChannel(CHANNEL, "Voice Agent", NotificationManager.IMPORTANCE_LOW))
-        ServiceCompat.startForeground(this, ID, notification("起動中"), ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE)
+        nm.createNotificationChannel(
+            NotificationChannel(CHANNEL, "Voice Agent", NotificationManager.IMPORTANCE_LOW)
+                .apply { lockscreenVisibility = Notification.VISIBILITY_PUBLIC }, // ロック画面にも状態と「話す」ボタンを出す
+        )
+        try {
+            ServiceCompat.startForeground(this, ID, notification("起動中"), ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE)
+        } catch (_: Exception) {
+            // アプリが見えていない状態での再起動など、マイクのサービスを開始できない場合。アプリを開き直せば再開できる。
+            stopSelf()
+            return
+        }
 
+        VoiceRuntime.syncSettings(this)
         VoiceRuntime.start(this)
-        job = scope.launch {
-            VoiceRuntime.status.collect { nm.notify(ID, notification(it)) }
+        scope.launch { VoiceRuntime.status.collect { nm.notify(ID, notification(it)) } }
+        scope.launch { VoiceRuntime.earphoneButton.collect { applyEarphoneButton(it) } }
+        scope.launch {
+            var previous = VoiceState.DISCONNECTED
+            VoiceRuntime.voiceState.collect { now ->
+                if (now == VoiceState.LISTENING && previous != VoiceState.LISTENING) beep()
+                previous = now
+            }
         }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (intent?.action == ACTION_STOP) {
-            VoiceRuntime.stop()
-            stopSelf()
-            return START_NOT_STICKY
+        when (intent?.action) {
+            ACTION_STOP -> {
+                VoiceRuntime.stop()
+                stopSelf()
+                return START_NOT_STICKY
+            }
+            ACTION_PTT -> {
+                VoiceRuntime.pressPtt()
+                return START_STICKY
+            }
         }
         // 設定が変わって再度起動された場合(サービスが動いたまま)にも、接続を張り直す。すでに動いていれば何もしない。
         VoiceRuntime.start(this)
@@ -51,23 +86,75 @@ class VoiceService : Service() {
     }
 
     override fun onDestroy() {
-        job?.cancel()
         scope.cancel()
+        mediaSession?.release()
+        mediaSession = null
+        tone?.release()
+        tone = null
         super.onDestroy()
     }
+
+    /**
+     * イヤホンのボタンを PTT として受け取る。再生中の MediaSession として登録すると、システムがメディアキーを
+     * ここに届ける(画面ロック中も)。音楽アプリの操作を奪うので、画面のスイッチで切り替えられる。
+     */
+    private fun applyEarphoneButton(enabled: Boolean) {
+        mediaSession?.release()
+        mediaSession = null
+        if (!enabled) return
+        val session = MediaSession(this, "VoiceAgentPtt")
+        session.setCallback(object : MediaSession.Callback() {
+            override fun onMediaButtonEvent(mediaButtonIntent: Intent): Boolean {
+                val event = keyEventOf(mediaButtonIntent) ?: return false
+                if (event.keyCode !in PTT_KEYS) return false
+                if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) VoiceRuntime.pressPtt()
+                return true
+            }
+        })
+        session.setPlaybackState(
+            PlaybackState.Builder()
+                .setActions(PlaybackState.ACTION_PLAY or PlaybackState.ACTION_PAUSE or PlaybackState.ACTION_PLAY_PAUSE)
+                .setState(PlaybackState.STATE_PLAYING, 0L, 1f)
+                .build(),
+        )
+        session.isActive = true
+        mediaSession = session
+    }
+
+    @Suppress("DEPRECATION")
+    private fun keyEventOf(intent: Intent): KeyEvent? =
+        if (Build.VERSION.SDK_INT >= 33) intent.getParcelableExtra(Intent.EXTRA_KEY_EVENT, KeyEvent::class.java)
+        else intent.getParcelableExtra(Intent.EXTRA_KEY_EVENT)
+
+    private fun beep() {
+        val t = tone ?: ToneGenerator(AudioManager.STREAM_MUSIC, 70).also { tone = it }
+        t.startTone(ToneGenerator.TONE_PROP_BEEP, 150)
+    }
+
+    private fun serviceIntent(requestCode: Int, action: String) =
+        PendingIntent.getService(this, requestCode, Intent(this, VoiceService::class.java).setAction(action), PendingIntent.FLAG_IMMUTABLE)
 
     private fun notification(text: String) = NotificationCompat.Builder(this, CHANNEL)
         .setSmallIcon(android.R.drawable.ic_btn_speak_now)
         .setContentTitle("Voice Agent")
         .setContentText(text)
         .setOngoing(true)
+        .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
         .setContentIntent(PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE))
-        .addAction(0, "停止", PendingIntent.getService(this, 1, Intent(this, VoiceService::class.java).setAction(ACTION_STOP), PendingIntent.FLAG_IMMUTABLE))
+        .addAction(0, "話す", serviceIntent(2, ACTION_PTT))
+        .addAction(0, "停止", serviceIntent(1, ACTION_STOP))
         .build()
 
     companion object {
         private const val CHANNEL = "voice_agent"
         private const val ID = 1
         const val ACTION_STOP = "dev.vag.app.STOP"
+        const val ACTION_PTT = "dev.vag.app.PTT"
+        private val PTT_KEYS = setOf(
+            KeyEvent.KEYCODE_HEADSETHOOK,
+            KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
+            KeyEvent.KEYCODE_MEDIA_PLAY,
+            KeyEvent.KEYCODE_MEDIA_PAUSE,
+        )
     }
 }

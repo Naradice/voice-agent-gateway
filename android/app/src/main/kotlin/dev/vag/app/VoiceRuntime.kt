@@ -37,6 +37,21 @@ object VoiceRuntime {
     /** いま接続に使っているトークンの確認コード(保存された値ではなく、実際に動いている接続のもの)。 */
     val activeFingerprint: StateFlow<String?> = _activeFingerprint
 
+    private val _voiceState = MutableStateFlow(VoiceState.DISCONNECTED)
+    /** 音声の状態(聞き始めのビープ音など、画面を見ない合図に使う)。 */
+    val voiceState: StateFlow<VoiceState> = _voiceState
+
+    private val _earphoneButton = MutableStateFlow(true)
+    /** イヤホンのボタンで話す、の設定。 */
+    val earphoneButton: StateFlow<Boolean> = _earphoneButton
+
+    fun syncSettings(context: Context) { _earphoneButton.value = Settings(context).earphoneButton }
+
+    fun setEarphoneButton(context: Context, enabled: Boolean) {
+        Settings(context).earphoneButton = enabled
+        _earphoneButton.value = enabled
+    }
+
     private val _status = MutableStateFlow("未接続")
     /** 通知に出す短い状態表示。 */
     val status: StateFlow<String> = _status
@@ -66,6 +81,7 @@ object VoiceRuntime {
         s.launch { client.state.collect { _connection.value = it } }
         s.launch { client.lastError.collect { _lastError.value = it } }
         s.launch { combine(client.state, controller.state) { c, v -> statusText(c, v) }.collect { _status.value = it } }
+        s.launch { controller.state.collect { _voiceState.value = it } }
         controller.start()
         _controller.value = controller
     }
@@ -78,6 +94,7 @@ object VoiceRuntime {
         scope = null
         _controller.value = null
         _activeFingerprint.value = null
+        _voiceState.value = VoiceState.DISCONNECTED
         _connection.value = ConnectionState.DISCONNECTED
         _status.value = "停止中"
     }
