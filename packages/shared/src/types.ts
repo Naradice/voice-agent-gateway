@@ -13,7 +13,11 @@ export interface SessionIndex {
 
 export type RoutingAction = "resume" | "create" | "confirm" | "reject";
 
+/** 発話の意図。割り込みや読み上げは通常の送信と区別する(§5.6)。省略時は send */
+export type RoutingIntent = "send" | "interrupt" | "read_latest";
+
 export interface RoutingDecision {
+  intent?: RoutingIntent;
   destination: string;
   sessionId?: string;
   action: RoutingAction;

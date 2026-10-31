@@ -8,14 +8,14 @@ Android の PTT 音声から ChatGPT(OpenAI API)や Codex などの Agent へ会
 | パッケージ | 内容 | 状態 |
 |---|---|---|
 | `packages/shared` | Router / Session / Decision の共通型 | 完了 |
-| `packages/phase0b-router-eval` | オフライン評価ハーネス + ルールのみルーター(方式A) | 動作確認済(dev 12件) |
+| `packages/phase0b-router-eval` | オフライン評価ハーネス + ルールのみルーター(方式A) | 動作確認済(dev 36 / final 20。方式A系と TF-IDF 代用の比較) |
 | `packages/phase0a-codex-probe` | Codex App Server プローブ(`probe.ts` 読み取り / `probe-write.ts` 書き込み) | 読み取りは Windows 実機で P0-01/02 合格。書き込みは未実行 |
 
 ## 実行
 
 ```bash
 npm install
-npm run p0b                      # dev セットで評価
+npm run p0b                      # dev セットで評価(--verbose で全件, --sweep で閾値掃引)
 npm run p0b -- --split=final     # 最終評価(設定確定後に1回だけ)
 npm run p0a                      # Windows + Codex Desktop 上で実行(CODEX_BIN で実行ファイル指定可)
 # 書き込み試験: Desktop で名前が vag-probe で始まる専用スレッドを作り、そのIDを渡す

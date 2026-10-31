@@ -1,14 +1,329 @@
 [
-  { "utterance": "今日の天気は？", "currentSessionId": "gpt-daily", "expect": { "destination": "openai", "action": "create" } },
-  { "utterance": "その話の続きを教えて", "currentSessionId": "gpt-jepa", "expect": { "destination": "openai", "sessionId": "gpt-jepa" } },
-  { "utterance": "Codexにサイトのビルドを確認させて", "currentSessionId": "gpt-daily", "expect": { "destination": "codex", "sessionId": "codex-web" } },
-  { "utterance": "別の話だけど、おすすめの本は？", "currentSessionId": "gpt-jepa", "expect": { "destination": "openai", "action": "create" } },
-  { "utterance": "JEPAの実験について相談したい", "currentSessionId": "gpt-daily", "expect": { "mustConfirm": true, "destination": "codex" } },
-  { "utterance": "CodexでJEPAの学習ジョブのログを見て", "currentSessionId": "gpt-jepa", "expect": { "destination": "codex", "sessionId": "codex-jepa" } },
-  { "utterance": "ChatGPTにJEPAの論文の要点を聞いて", "currentSessionId": "codex-jepa", "expect": { "destination": "openai", "sessionId": "gpt-jepa" } },
-  { "utterance": "その話の続きでCodexに実装させて", "currentSessionId": "gpt-jepa", "expect": { "mustConfirm": true, "destination": "codex" } },
-  { "utterance": "Codexのサイトのリポジトリを削除して", "currentSessionId": "codex-web", "expect": { "mustConfirm": true, "destination": "codex" } },
-  { "utterance": "さっきの続きを", "currentSessionId": "codex-jepa", "expect": { "destination": "codex", "sessionId": "codex-jepa" } },
-  { "utterance": "実験結果を確認して", "currentSessionId": "gpt-daily", "expect": { "mustConfirm": true, "destination": "codex" } },
-  { "utterance": "こんにちは", "currentSessionId": "gpt-daily", "expect": { "destination": "openai", "action": "create" } }
+ {
+  "category": "chat",
+  "utterance": "今日の天気は？",
+  "currentSessionId": "gpt-daily",
+  "expect": {
+   "destination": "openai",
+   "action": "create"
+  }
+ },
+ {
+  "category": "chat",
+  "utterance": "こんにちは",
+  "currentSessionId": "gpt-daily",
+  "expect": {
+   "destination": "openai",
+   "action": "create"
+  }
+ },
+ {
+  "category": "chat",
+  "utterance": "おすすめの夕飯を教えて",
+  "currentSessionId": "codex-web",
+  "expect": {
+   "destination": "openai",
+   "action": "create"
+  }
+ },
+ {
+  "category": "chat",
+  "utterance": "明日の東京の気温は",
+  "currentSessionId": "gpt-jepa",
+  "expect": {
+   "destination": "openai",
+   "action": "create"
+  }
+ },
+ {
+  "category": "research",
+  "utterance": "JEPAの論文の要点をまとめて",
+  "currentSessionId": "gpt-daily",
+  "expect": {
+   "destination": "openai",
+   "sessionId": "gpt-jepa"
+  }
+ },
+ {
+  "category": "research",
+  "utterance": "表現学習の評価指標について相談したい",
+  "currentSessionId": "gpt-daily",
+  "expect": {
+   "destination": "openai",
+   "sessionId": "gpt-jepa"
+  }
+ },
+ {
+  "category": "dev",
+  "utterance": "学習ジョブのログを確認して",
+  "currentSessionId": "gpt-daily",
+  "expect": {
+   "destination": "codex",
+   "sessionId": "codex-jepa"
+  }
+ },
+ {
+  "category": "dev",
+  "utterance": "サイトのCSSを直して",
+  "currentSessionId": "gpt-daily",
+  "expect": {
+   "destination": "codex",
+   "sessionId": "codex-web"
+  }
+ },
+ {
+  "category": "dev",
+  "utterance": "ビルドが通らない、見てほしい",
+  "currentSessionId": "gpt-daily",
+  "expect": {
+   "destination": "codex",
+   "sessionId": "codex-web"
+  }
+ },
+ {
+  "category": "continue",
+  "utterance": "その話の続きを教えて",
+  "currentSessionId": "gpt-jepa",
+  "expect": {
+   "destination": "openai",
+   "sessionId": "gpt-jepa"
+  }
+ },
+ {
+  "category": "continue",
+  "utterance": "さっきの続きを",
+  "currentSessionId": "codex-jepa",
+  "expect": {
+   "destination": "codex",
+   "sessionId": "codex-jepa"
+  }
+ },
+ {
+  "category": "continue",
+  "utterance": "続きをお願い",
+  "currentSessionId": "codex-web",
+  "expect": {
+   "destination": "codex",
+   "sessionId": "codex-web"
+  }
+ },
+ {
+  "category": "continue",
+  "utterance": "この件の続きをCodexで",
+  "currentSessionId": "gpt-jepa",
+  "expect": {
+   "destination": "codex",
+   "mustConfirm": true
+  }
+ },
+ {
+  "category": "continue",
+  "utterance": "それについてもう少し詳しく",
+  "currentSessionId": "gpt-daily",
+  "expect": {
+   "destination": "openai",
+   "sessionId": "gpt-daily"
+  }
+ },
+ {
+  "category": "topic_change",
+  "utterance": "別の話だけど、おすすめの本は？",
+  "currentSessionId": "gpt-jepa",
+  "expect": {
+   "destination": "openai",
+   "action": "create"
+  }
+ },
+ {
+  "category": "topic_change",
+  "utterance": "話は変わるけどCodexでサイトのビルドを確認して",
+  "currentSessionId": "gpt-jepa",
+  "expect": {
+   "destination": "codex",
+   "mustConfirm": true
+  }
+ },
+ {
+  "category": "topic_change",
+  "utterance": "ところで来週の予定を考えたい",
+  "currentSessionId": "codex-jepa",
+  "expect": {
+   "destination": "openai",
+   "action": "create"
+  }
+ },
+ {
+  "category": "ambiguous",
+  "utterance": "JEPAの実験について相談したい",
+  "currentSessionId": "gpt-daily",
+  "expect": {
+   "destination": "codex",
+   "mustConfirm": true
+  }
+ },
+ {
+  "category": "ambiguous",
+  "utterance": "実験結果を確認して",
+  "currentSessionId": "gpt-daily",
+  "expect": {
+   "destination": "codex",
+   "mustConfirm": true
+  }
+ },
+ {
+  "category": "ambiguous",
+  "utterance": "あれどうなった？",
+  "currentSessionId": "codex-web",
+  "expect": {
+   "destination": "codex",
+   "mustConfirm": true
+  }
+ },
+ {
+  "category": "explicit",
+  "utterance": "CodexでJEPAの学習ジョブのログを見て",
+  "currentSessionId": "gpt-jepa",
+  "expect": {
+   "destination": "codex",
+   "sessionId": "codex-jepa"
+  }
+ },
+ {
+  "category": "explicit",
+  "utterance": "ChatGPTにJEPAの論文の要点を聞いて",
+  "currentSessionId": "codex-jepa",
+  "expect": {
+   "destination": "openai",
+   "sessionId": "gpt-jepa"
+  }
+ },
+ {
+  "category": "explicit",
+  "utterance": "Codexにサイトのビルドを確認させて",
+  "currentSessionId": "gpt-daily",
+  "expect": {
+   "destination": "codex",
+   "sessionId": "codex-web"
+  }
+ },
+ {
+  "category": "explicit",
+  "utterance": "ChatGPTに雑談を頼んで",
+  "currentSessionId": "codex-web",
+  "expect": {
+   "destination": "openai"
+  }
+ },
+ {
+  "category": "risky",
+  "utterance": "Codexのサイトのリポジトリを削除して",
+  "currentSessionId": "codex-web",
+  "expect": {
+   "destination": "codex",
+   "mustConfirm": true
+  }
+ },
+ {
+  "category": "risky",
+  "utterance": "学習ジョブをリセットして",
+  "currentSessionId": "codex-jepa",
+  "expect": {
+   "destination": "codex",
+   "mustConfirm": true
+  }
+ },
+ {
+  "category": "risky",
+  "utterance": "変更をpushして",
+  "currentSessionId": "codex-web",
+  "expect": {
+   "destination": "codex",
+   "mustConfirm": true
+  }
+ },
+ {
+  "category": "stt_noise",
+  "utterance": "ジェパの実験について相談したい",
+  "currentSessionId": "gpt-daily",
+  "expect": {
+   "destination": "codex",
+   "mustConfirm": true
+  }
+ },
+ {
+  "category": "stt_noise",
+  "utterance": "コデクスにサイトのビルドを確認させて",
+  "currentSessionId": "gpt-daily",
+  "expect": {
+   "destination": "codex",
+   "sessionId": "codex-web"
+  }
+ },
+ {
+  "category": "stt_noise",
+  "utterance": "チャットGPTにJEPAの論文を聞いて",
+  "currentSessionId": "codex-jepa",
+  "expect": {
+   "destination": "openai",
+   "sessionId": "gpt-jepa"
+  }
+ },
+ {
+  "category": "stt_noise",
+  "utterance": "学習ジョブのロクを見て",
+  "currentSessionId": "gpt-daily",
+  "expect": {
+   "destination": "codex",
+   "sessionId": "codex-jepa"
+  }
+ },
+ {
+  "category": "stt_noise",
+  "utterance": "ジェイペのログを確認して",
+  "currentSessionId": "gpt-daily",
+  "expect": {
+   "destination": "codex",
+   "sessionId": "codex-jepa"
+  }
+ },
+ {
+  "category": "interrupt",
+  "utterance": "止めて",
+  "currentSessionId": "codex-jepa",
+  "expect": {
+   "destination": "codex",
+   "sessionId": "codex-jepa",
+   "intent": "interrupt"
+  }
+ },
+ {
+  "category": "interrupt",
+  "utterance": "ストップ、中断して",
+  "currentSessionId": "codex-web",
+  "expect": {
+   "destination": "codex",
+   "sessionId": "codex-web",
+   "intent": "interrupt"
+  }
+ },
+ {
+  "category": "read_latest",
+  "utterance": "Codexの返事を読んで",
+  "currentSessionId": "gpt-jepa",
+  "expect": {
+   "destination": "codex",
+   "sessionId": "codex-jepa",
+   "intent": "read_latest"
+  }
+ },
+ {
+  "category": "read_latest",
+  "utterance": "さっきの返事をもう一度読んで",
+  "currentSessionId": "codex-web",
+  "expect": {
+   "destination": "codex",
+   "sessionId": "codex-web",
+   "intent": "read_latest"
+  }
+ }
 ]
