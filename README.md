@@ -14,6 +14,8 @@ Android の PTT 音声から ChatGPT(OpenAI API)や Codex などの Agent へ会
 
 ## 実行
 
+Windows のコマンドは PowerShell の書き方(`$env:名前="値"`)で書いてある箇所がある。cmd.exe では `set 名前=値` に読み替える(`powershell` と入力すれば PowerShell に切り替わる)。トークンなどの秘密は、チャットやリポジトリに貼らない。
+
 ```bash
 npm install
 npm run p0b                      # dev セットで評価(--verbose で全件, --sweep で閾値掃引)
@@ -28,6 +30,10 @@ npm run p0a                      # Windows + Codex Desktop 上で実行(CODEX_BI
 # ローカルLLMの状態確認・先読み・解放(GPU を空けたいとき): npm run llm -- status|warm|unload
 # Gateway の起動(Windows)。トークン生成: node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
 #   $env:VAG_DEVICES='[{"deviceId":"pixel","token":"<生成したトークン>"}]'; $env:VAG_HOST="<TailscaleのIP>"; npm run gateway
+#   cmd.exe の場合(PowerShell の $env: は使えない。値は引用符で囲まない):
+#     set VAG_DEVICES=[{"deviceId":"pixel","token":"<生成したトークン>"}]
+#     set VAG_HOST=<TailscaleのIP>   (tailscale ip -4 で確認)
+#     npm run gateway
 npm test                         # Gateway(偽 app-server によるテスト。Codex 不要)
 npm run typecheck
 ```
