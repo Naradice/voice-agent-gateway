@@ -3,9 +3,10 @@
 //   --check: トークンを含まない情報だけ(確認コードと接続先)を表示する。画面共有やスクリーンショット向け。
 import { checkHost, parseDevices } from "./config.ts";
 import { connectionCode, tokenFingerprint } from "./connection.ts";
-import { loadDotEnv } from "./env.ts";
+import { loadDotEnv, shadowedMessage } from "./env.ts";
 
-loadDotEnv();
+const shadow = shadowedMessage(loadDotEnv());
+if (shadow) console.warn(`警告: ${shadow}\n`);
 const args = process.argv.slice(2);
 const arg = (name: string) => { const i = args.indexOf(`--${name}`); return i >= 0 ? args[i + 1] : undefined; };
 

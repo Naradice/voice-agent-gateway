@@ -12,7 +12,8 @@ import { RuleRouter } from "../../phase0b-router-eval/src/rule-router.ts";
 import type { AgentCapability } from "../../shared/src/types.ts";
 import { AgentError, type AgentAdapter, type AgentEvent, type AgentSession, type HistoryItem } from "./adapter.ts";
 import { checkHost, jsonLog, parseDevices } from "./config.ts";
-import { loadDotEnv } from "./env.ts";
+import { loadDotEnv, shadowedMessage } from "./env.ts";
+import { tokenFingerprint } from "./connection.ts";
 import { Gateway } from "./gateway.ts";
 import { AdapterRegistry } from "./registry.ts";
 import { startServer } from "./server.ts";
@@ -135,7 +136,9 @@ class MockCodex extends MockAdapter {
   }
 }
 
-loadDotEnv();
+const dot = loadDotEnv();
+const shadow = shadowedMessage(dot);
+if (shadow) console.warn(`警告: ${shadow}`);
 const registry = new AdapterRegistry();
 registry.register(new MockChat());
 registry.register(new MockCodex());
@@ -145,14 +148,18 @@ const gateway = new Gateway({
   log: jsonLog,
   router: new RuleRouter({ name: "mock", confirmVague: true, crossAgentConfirm: true }),
 });
+const devices = parseDevices(process.env.VAG_DEVICES);
 const server = await startServer({
   gateway,
-  devices: parseDevices(process.env.VAG_DEVICES),
+  devices,
   host: checkHost(process.env.VAG_HOST ?? "127.0.0.1"),
   port: Number(process.env.VAG_PORT ?? 8787),
   log: jsonLog,
 });
-jsonLog("info", "gateway started", { mode: "mock", port: server.port, agents: ["chat", "codex"] });
+jsonLog("info", "gateway started", {
+  mode: "mock", port: server.port, agents: ["chat", "codex"],
+  devices: devices.map((d) => ({ deviceId: d.deviceId, tokenFingerprint: tokenFingerprint(d.token) })),
+});
 const shutdown = async () => { await server.close(); process.exit(0); };
 process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);

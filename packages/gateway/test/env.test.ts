@@ -4,7 +4,7 @@ import { mkdtempSync, writeFileSync, existsSync, readFileSync, statSync } from "
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parseEnv } from "node:util";
-import { loadDotEnv } from "../src/env.ts";
+import { loadDotEnv, shadowedMessage } from "../src/env.ts";
 import { connectionCode, tokenFingerprint } from "../src/connection.ts";
 import { buildEnvFile, newToken } from "../src/init.ts";
 
@@ -26,11 +26,15 @@ test("loadDotEnv reads a file, never overrides real environment variables, and t
   writeFileSync(file, `VAG_TEST_NEW=from-file\nVAG_TEST_EXISTING=from-file\nVAG_TEST_JSON='[{"a":"b"}]'\n`);
   process.env.VAG_TEST_EXISTING = "from-shell";
   try {
-    assert.equal(loadDotEnv(file), true);
+    const r = loadDotEnv(file);
+    assert.equal(r.loaded, true);
+    assert.deepEqual(r.shadowed, ["VAG_TEST_EXISTING"], "環境変数に上書きされた設定が分かる");
+    assert.match(shadowedMessage(r)!, /VAG_TEST_EXISTING/);
     assert.equal(process.env.VAG_TEST_NEW, "from-file");
     assert.equal(process.env.VAG_TEST_EXISTING, "from-shell");
     assert.equal(process.env.VAG_TEST_JSON, '[{"a":"b"}]');
-    assert.equal(loadDotEnv(join(dir, "missing.env")), false);
+    assert.equal(loadDotEnv(join(dir, "missing.env")).loaded, false);
+    assert.equal(shadowedMessage(loadDotEnv(join(dir, "missing.env"))), undefined);
   } finally {
     for (const k of ["VAG_TEST_NEW", "VAG_TEST_EXISTING", "VAG_TEST_JSON"]) delete process.env[k];
   }

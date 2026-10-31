@@ -4,6 +4,7 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import { createServer, type IncomingMessage } from "node:http";
 import { WebSocket, WebSocketServer } from "ws";
 import type { Gateway, DeviceLink } from "./gateway.ts";
+import { tokenFingerprint } from "./connection.ts";
 import { parseClientMessage, type ServerMessage } from "./protocol.ts";
 
 export interface DeviceCredential { deviceId: string; token: string }
@@ -51,7 +52,14 @@ export function startServer(o: ServerOptions): Promise<RunningServer> {
   http.on("upgrade", (req, socket, head) => {
     const deviceId = authenticate(req, devices);
     if (!deviceId) {
-      log("warn", "unauthorized connection attempt", { remote: req.socket.remoteAddress });
+      // 原因の切り分け用に、送られてきたトークンと、Gateway が期待するトークンの確認コード(6桁)を並べて記録する。
+      // 確認コードはトークンの手がかりにならない。不一致なら入力ミスか、古いトークンで動いている。
+      const presented = /^Bearer (.+)$/.exec(req.headers.authorization ?? "")?.[1];
+      log("warn", "unauthorized connection attempt", {
+        remote: req.socket.remoteAddress,
+        presentedFingerprint: presented ? tokenFingerprint(presented) : "(Authorization なし)",
+        expected: o.devices.map((d) => ({ deviceId: d.deviceId, fingerprint: tokenFingerprint(d.token) })),
+      });
       socket.write("HTTP/1.1 401 Unauthorized\r\nConnection: close\r\nContent-Length: 0\r\n\r\n");
       socket.destroy();
       return;

@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { WebSocket } from "ws";
+import { tokenFingerprint } from "../src/connection.ts";
 import { Gateway } from "../src/gateway.ts";
 import { AdapterRegistry } from "../src/registry.ts";
 import { startServer } from "../src/server.ts";
@@ -9,7 +10,7 @@ import { FakeAdapter, StubRouter, session } from "./helpers.ts";
 
 const TOKEN = "t".repeat(32);
 
-async function boot(extra: { heartbeatMs?: number; helloTimeoutMs?: number; maxPayload?: number } = {}) {
+async function boot(extra: { heartbeatMs?: number; helloTimeoutMs?: number; maxPayload?: number; log?: (level: "info" | "warn" | "error", msg: string, meta?: object) => void } = {}) {
   const store = new Store();
   const chat = new FakeAdapter("chat", ["list_sessions", "read_history", "send_message", "subscribe", "interrupt", "create_session"], [session("c1", "chat", "雑談")]);
   const registry = new AdapterRegistry();
@@ -186,5 +187,22 @@ test("a probe connection answers hello.ok with the instance id, closes, and does
   // 間違ったトークンは、プローブでも 401
   await assert.rejects(connect(server.port, "wrong-token", {}, "/?probe=1").opened, /HTTP 401/);
   live.ws.close();
+  await server.close();
+});
+
+test("a refused connection is logged with fingerprints of the presented and expected tokens, never the tokens", async () => {
+  const logs: { msg: string; meta: any }[] = [];
+  const { server } = await boot({ log: (_l, msg, meta) => logs.push({ msg, meta }) });
+  const wrong = "w".repeat(32);
+  await assert.rejects(connect(server.port, wrong).opened, /HTTP 401/);
+  await assert.rejects(connect(server.port, null).opened, /HTTP 401/);
+
+  const refused = logs.filter((l) => l.msg === "unauthorized connection attempt");
+  assert.equal(refused.length, 2);
+  assert.equal(refused[0].meta.presentedFingerprint, tokenFingerprint(wrong));
+  assert.deepEqual(refused[0].meta.expected, [{ deviceId: "pixel", fingerprint: tokenFingerprint(TOKEN) }, { deviceId: "other", fingerprint: tokenFingerprint("o".repeat(32)) }]);
+  assert.match(refused[1].meta.presentedFingerprint, /Authorization/);
+  const text = JSON.stringify(logs);
+  assert.ok(!text.includes(wrong) && !text.includes(TOKEN), "トークン本体はログに出さない");
   await server.close();
 });
