@@ -21,6 +21,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.combine
+import android.media.VolumeProvider
 import kotlinx.coroutines.launch
 
 /**
@@ -58,7 +60,10 @@ class VoiceService : Service() {
         VoiceRuntime.syncSettings(this)
         VoiceRuntime.start(this)
         scope.launch { VoiceRuntime.status.collect { nm.notify(ID, notification(it)) } }
-        scope.launch { VoiceRuntime.earphoneButton.collect { applyEarphoneButton(it) } }
+        scope.launch {
+            combine(VoiceRuntime.earphoneButton, VoiceRuntime.volumeDownPtt) { e, v -> e to v }
+                .collect { (e, v) -> applyMediaSession(e, v) }
+        }
         scope.launch {
             var previous = VoiceState.DISCONNECTED
             VoiceRuntime.voiceState.collect { now ->
@@ -95,22 +100,33 @@ class VoiceService : Service() {
     }
 
     /**
-     * イヤホンのボタンを PTT として受け取る。再生中の MediaSession として登録すると、システムがメディアキーを
-     * ここに届ける(画面ロック中も)。音楽アプリの操作を奪うので、画面のスイッチで切り替えられる。
+     * イヤホンのボタンと音量下キーを PTT として受け取る。再生中の MediaSession として登録すると、システムがメディアキーを
+     * ここに届ける(画面ロック中も)。音量キーは、リモート再生の音量(VolumeProvider)として登録すると、画面が消えている間も
+     * 届く。ユーザー補助サービス(VolumeKeyService)は画面が消えている間はキーを受け取れないため、その穴を埋める。
+     * どちらも音楽アプリの操作・音量調整を奪うので、画面のスイッチで切り替えられる。
      */
-    private fun applyEarphoneButton(enabled: Boolean) {
+    private fun applyMediaSession(earphone: Boolean, volumeDown: Boolean) {
         mediaSession?.release()
         mediaSession = null
-        if (!enabled) return
+        if (!earphone && !volumeDown) return
         val session = MediaSession(this, "VoiceAgentPtt")
         session.setCallback(object : MediaSession.Callback() {
             override fun onMediaButtonEvent(mediaButtonIntent: Intent): Boolean {
+                if (!VoiceRuntime.earphoneButton.value) return false
                 val event = keyEventOf(mediaButtonIntent) ?: return false
                 if (event.keyCode !in PTT_KEYS) return false
                 if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) VoiceRuntime.pressPtt()
                 return true
             }
         })
+        if (volumeDown) {
+            session.setPlaybackToRemote(object : VolumeProvider(VOLUME_CONTROL_RELATIVE, 100, 50) {
+                override fun onAdjustVolume(direction: Int) {
+                    // 音量下(direction < 0)だけを PTT にする。音量上は何もしない。
+                    if (direction < 0) scope.launch { VoiceRuntime.pressPtt() }
+                }
+            })
+        }
         session.setPlaybackState(
             PlaybackState.Builder()
                 .setActions(PlaybackState.ACTION_PLAY or PlaybackState.ACTION_PAUSE or PlaybackState.ACTION_PLAY_PAUSE)

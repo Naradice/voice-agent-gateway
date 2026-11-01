@@ -158,10 +158,10 @@ private fun MainScreen(onSaveSettings: (String, String?) -> Unit) {
  */
 @Composable
 private fun VolumeKeyRow(context: android.content.Context) {
-    var enabled by remember { mutableStateOf(Settings(context).volumeDownPtt) }
+    val enabled by VoiceRuntime.volumeDownPtt.collectAsState()
     val allowed by VolumeKeyService.connected.collectAsState()
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Switch(checked = enabled, onCheckedChange = { enabled = it; Settings(context).volumeDownPtt = it })
+        Switch(checked = enabled, onCheckedChange = { VoiceRuntime.setVolumeDownPtt(context, it) })
         Spacer(Modifier.width(8.dp))
         Text("音量下キーで話す(動作中は音量を変えられません)")
     }

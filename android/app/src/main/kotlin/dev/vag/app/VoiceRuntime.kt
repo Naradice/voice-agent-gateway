@@ -45,7 +45,20 @@ object VoiceRuntime {
     /** イヤホンのボタンで話す、の設定。 */
     val earphoneButton: StateFlow<Boolean> = _earphoneButton
 
-    fun syncSettings(context: Context) { _earphoneButton.value = Settings(context).earphoneButton }
+    private val _volumeDownPtt = MutableStateFlow(false)
+    /** 音量下キーで話す、の設定。 */
+    val volumeDownPtt: StateFlow<Boolean> = _volumeDownPtt
+
+    fun syncSettings(context: Context) {
+        val s = Settings(context)
+        _earphoneButton.value = s.earphoneButton
+        _volumeDownPtt.value = s.volumeDownPtt
+    }
+
+    fun setVolumeDownPtt(context: Context, enabled: Boolean) {
+        Settings(context).volumeDownPtt = enabled
+        _volumeDownPtt.value = enabled
+    }
 
     fun setEarphoneButton(context: Context, enabled: Boolean) {
         Settings(context).earphoneButton = enabled
