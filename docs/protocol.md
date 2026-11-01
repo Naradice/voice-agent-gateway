@@ -32,13 +32,17 @@ Authorization: Bearer <デバイスのトークン>
 | type | フィールド | 内容 |
 |---|---|---|
 | `hello.ok` | `deviceId`, `serverTime`, `replay`, `instanceId` | `replay` 件の未処理イベントがこの直後に届く。**`instanceId` を保存し、前回と違えば `lastEventId` を破棄する**(Gateway の DB を作り直した・別の Gateway につなぎ替えた場合、イベント番号は 1 から振り直されるため。破棄しないと新しいイベントを「読み上げ済み」として捨ててしまう) |
-| `request.accepted` | `requestId`, `destination`, `sessionId?`, `intent`, `created?` | 指示を受理した(結果は `speech.enqueue` で届く)。`intent` は `send` / `interrupt` / `read_latest` |
+| `request.accepted` | `requestId`, `destination`, `sessionId?`, `intent`, `created?` | 指示を受理した(結果は `speech.enqueue` で届く)。`intent` は `send` / `interrupt` / `read_latest` / `read_notices` |
 | `request.rejected` | `requestId`, `code`, `message`, `retryable` | 受理できなかった。**`message` は読み上げ可能な日本語**。`retryable` が true なら再試行に意味がある |
 | `routing.confirmation_required` | `requestId`, `prompt`, `candidates[]` | 宛先が曖昧、または確認が必要。`prompt` を読み上げ、回答を `routing.confirm` で返す |
 | `speech.enqueue` | `eventId?`, `ephemeral?`, `priority`, `text`, `sessionId?`, `destination?` | 読み上げ要求 |
+| `notices` | `count`, `latest?` | 待機メッセージ(読み上げない通知)の未読件数。未読があるときだけ、接続直後と変化のたびに届く。端末は接続のたびに 0 件から始め、通知に件数を出す。読み上げは、利用者が「待機メッセージを読んで」と言う(`message.send` でこの言い回しを送る)ときだけ |
 | `error` | `code`, `message` | プロトコル上の誤り(`invalid` / `not_ready` / `internal`)。接続は維持される |
 
 `candidates[]` の各要素: `{ destination, sessionId?, label }`。`label` は「Codexの「JEPA実験」」のように読み上げ可能。`sessionId` がなければ新しい会話。
+
+### 待機メッセージ
+Gateway が自分から出す通知(例: Codex のスレッドで作業が一区切りした)は、**自動では読み上げない**。SQLite に保存し(3日・最大50件)、`notices` で件数だけ知らせる。端末は件数を通知に出し、「読む」ボタンまたは音声「待機メッセージを読んで」で、`message.send` を送る。Gateway はこの言い回し(`待機メッセージ`、`未読の通知`、`通知を読んで` など)を Agent に送らず自分で処理し、最大8件を1つの `speech.enqueue`(保存される)で読み上げて既読にし、`notices {count}` を送り直す。
 
 ### `request.rejected` の `code`
 `busy`(他のアプリが使用中。パソコン側で閉じる必要)/ `usage_limit`(利用上限)/ `not_found` / `unavailable`(接続できない・ローカルLLM未起動)/ `unsupported` / `protocol` / `ambiguous`(宛先を決められない)/ `cancelled` / `invalid` / **`indeterminate`**(前回の指示が実行されたか不明。自動で再送しない)。

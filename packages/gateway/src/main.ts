@@ -5,7 +5,7 @@
 //   VAG_PORT      既定 8787
 //   VAG_DB        SQLite のパス。既定 data/gateway.sqlite
 //   VAG_CODEX     1 で Codex Adapter を有効にする
-//   LOCAL_MODEL(既定 qwen3:14b) OLLAMA_BASE_URL LOCAL_CONTEXT LOCAL_USER_PROFILE LOCAL_TIMEZONE VAG_KEEP_ALIVE(既定 10m)
+//   LOCAL_MODEL(既定 qwen3:14b) OLLAMA_BASE_URL CODEX_POLL_SECONDS(既定 60。0 で無効) LOCAL_CONTEXT LOCAL_USER_PROFILE LOCAL_TIMEZONE VAG_KEEP_ALIVE(既定 10m)
 //   SEARCH_PROVIDER=brave|searxng, BRAVE_API_KEY / SEARXNG_URL
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
@@ -16,6 +16,7 @@ import { checkHost, fail, jsonLog, parseDevices } from "./config.ts";
 import { loadDotEnv, shadowedMessage, sourceOf } from "./env.ts";
 import { tokenFingerprint } from "./connection.ts";
 import { Gateway } from "./gateway.ts";
+import { CompletionWatcher } from "./watch.ts";
 import { LocalLLMAdapter } from "./local/adapter.ts";
 import { OllamaLifecycle } from "./local/lifecycle.ts";
 import { AdapterRegistry } from "./registry.ts";
@@ -79,11 +80,24 @@ registry.register(new LocalLLMAdapter({
 }));
 if (env.VAG_CODEX === "1") registry.register(new CodexAdapter());
 
+// Codex のスレッドを定期的に確認し、作業が終わったものを待機メッセージにする(自動では読み上げない)
+let watcher: CompletionWatcher | undefined;
+const pollSeconds = env.CODEX_POLL_SECONDS === undefined ? 60 : Number(env.CODEX_POLL_SECONDS);
 const gateway = new Gateway({
   store, registry, log,
+  onOwnSend: (destination, sessionId) => { if (destination === "codex") watcher?.noteOwn(sessionId); },
   // 暫定の設定(Phase 0B の A2 相当)。許容する確認率が決まったら見直す。
   router: new RuleRouter({ name: "gateway", confirmVague: true, crossAgentConfirm: true }),
 });
+
+const codexAdapter = registry.get("codex");
+if (codexAdapter && Number.isFinite(pollSeconds) && pollSeconds >= 10) {
+  watcher = new CompletionWatcher({
+    adapter: codexAdapter, intervalMs: pollSeconds * 1000, log,
+    onSettled: (s) => gateway.notify({ kind: "turn_settled", sessionId: s.id, destination: "codex", text: `Codexの「${s.title}」で作業が一区切りしました。` }),
+  });
+  watcher.start();
+}
 
 const port = Number(env.VAG_PORT ?? 8787);
 const server = await startServer({ gateway, devices, host, port, log, diagnostics: { tokenSource: sourceOf(dot, "VAG_DEVICES"), cwd: process.cwd() } }).catch((e: NodeJS.ErrnoException) => {

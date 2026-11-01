@@ -91,6 +91,10 @@ data class SpeechEnqueue(
     val destination: String? = null,
 ) : ServerMessage
 
+/** 待機メッセージ(読み上げない通知)の未読件数。接続のたびに 0 から始まり、未読があれば Gateway が知らせる。 */
+@Serializable @SerialName("notices")
+data class Notices(val count: Int, val latest: String? = null) : ServerMessage
+
 @Serializable @SerialName("error")
 data class ErrorMessage(val code: String, val message: String) : ServerMessage
 

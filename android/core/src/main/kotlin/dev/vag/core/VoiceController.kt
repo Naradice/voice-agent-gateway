@@ -45,6 +45,10 @@ class VoiceController(
     /** 最後に読み上げた文(画面表示用)。 */
     val spoken: StateFlow<String?> = _spoken
 
+    private val _notices = MutableStateFlow(Notices(0))
+    /** 待機メッセージの未読件数(通知に出す)。 */
+    val notices: StateFlow<Notices> = _notices
+
     private val queue = SpeechQueue(positions.lastEventId?.toLongOrNull())
     private val inflight = LinkedHashMap<String, MessageSend>()
     private var pending: Pending? = null
@@ -105,6 +109,13 @@ class VoiceController(
                 handleTranscript(text)
             }
         }
+    }
+
+    /** 「待機メッセージを読んで」を送る(通知の「読む」ボタン)。確認待ちの回答とは別に、その場で送る。 */
+    fun readNotices() {
+        val msg = MessageSend(newId(), READ_NOTICES_PHRASE)
+        inflight[msg.requestId] = msg
+        if (link.send(msg)) watchResponse(msg.requestId) else inflight.remove(msg.requestId)
     }
 
     private fun handleTranscript(text: String) {
@@ -174,7 +185,9 @@ class VoiceController(
 
     private fun onMessage(m: ServerMessage) {
         when (m) {
+            is Notices -> _notices.value = m
             is HelloOk -> {
+                _notices.value = Notices(0) // 未読があれば、このあとに Gateway が知らせる
                 val id = m.instanceId
                 if (id != null && positions.instanceId != id) {
                     // 別の Gateway(または作り直した DB)。イベント番号は 1 から振り直されているので、前の位置は捨てる。
@@ -281,3 +294,6 @@ class VoiceController(
         _state.value = if (link.state.value == ConnectionState.CONNECTED) VoiceState.IDLE else VoiceState.DISCONNECTED
     }
 }
+
+/** Gateway が待機メッセージの読み上げ要求と解釈する言い方(docs/protocol.md)。 */
+const val READ_NOTICES_PHRASE = "待機メッセージを読んで"

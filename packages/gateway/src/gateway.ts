@@ -6,6 +6,9 @@ import type { AdapterRegistry } from "./registry.ts";
 import { SentenceStream, formatForSpeech } from "./speech.ts";
 import type { RequestRecord, Store } from "./store.ts";
 
+/** 「待機メッセージを読んで」など。Gateway が直接答える(Agent には送らない) */
+export const isNoticeRequest = (text: string): boolean => /待機(中の)?(メッセージ|通知)|未読(の)?(メッセージ|通知)|通知を(読|聞|教)|新着(の)?(通知|メッセージ)/.test(text);
+
 /** 端末への送信口。伝送路(WebSocket)から Gateway を切り離す。 */
 export interface DeviceLink { send(msg: ServerMessage): void }
 
@@ -23,6 +26,8 @@ export interface GatewayOptions {
   /** 1ターンで読み上げる最大文字数(超えた分は省略し、全文は履歴に残る)。既定 600 */
   maxSpeechChars?: number;
   catalogTtlMs?: number;
+  /** この Gateway が Agent へ指示を送る直前に呼ぶ(自分の指示による更新を、待機メッセージにしないため) */
+  onOwnSend?: (destination: string, sessionId: string) => void;
   log?: Log;
 }
 
@@ -83,7 +88,42 @@ export class Gateway {
     const pending = store.eventsAfter(deviceId, 0);
     link.send({ type: "hello.ok", deviceId, serverTime: new Date().toISOString(), replay: pending.length, instanceId: mine });
     for (const e of pending) link.send({ ...e.payload, eventId: String(e.seq) });
+    store.pruneNotices(new Date(Date.now() - 3 * 24 * HOUR).toISOString(), 50);
+    // 未読があるときだけ知らせる。0 件は、端末が接続のたびに 0 から始める(protocol.md)
+    if (store.pendingNotices().length > 0) link.send(this.noticesMessage());
     return pending.length;
+  }
+
+  // ---- 待機メッセージ ----
+
+  private noticesMessage(): ServerMessage {
+    const pending = this.o.store.pendingNotices();
+    return { type: "notices", count: pending.length, ...(pending.length ? { latest: pending[pending.length - 1].text } : {}) };
+  }
+
+  private broadcastNotices(): void {
+    const m = this.noticesMessage();
+    for (const link of this.links.values()) link.send(m);
+  }
+
+  /** 自動では読み上げない通知を保持し、接続中の端末に件数を知らせる。 */
+  notify(n: { kind: string; text: string; sessionId?: string; destination?: string }): void {
+    this.o.store.addNotice(n);
+    this.o.store.pruneNotices(new Date(Date.now() - 3 * 24 * HOUR).toISOString(), 50);
+    this.broadcastNotices();
+  }
+
+  /** 未読を読み上げ、既読にする。一度に読むのは最大 8 件(残りは次回)。 */
+  private readNotices(deviceId: string): void {
+    const { store } = this.o;
+    const pending = store.pendingNotices();
+    if (pending.length === 0) return this.speak(deviceId, { type: "speech.enqueue", priority: "normal", text: "待機メッセージはありません。" });
+    const batch = pending.slice(0, 8);
+    const rest = pending.length - batch.length;
+    const text = [`待機メッセージが${pending.length}件あります。`, ...batch.map((n, i) => `${i + 1}件目。${n.text}`), rest > 0 ? `残り${rest}件は、もう一度お願いします。` : ""].filter(Boolean).join(" ");
+    this.speak(deviceId, { type: "speech.enqueue", priority: "normal", text });
+    store.markNoticesRead(batch.map((n) => n.id));
+    this.broadcastNotices();
   }
 
   detach(deviceId: string, link: DeviceLink): void {
@@ -172,6 +212,13 @@ export class Gateway {
     if (prev) return this.replay(deviceId, requestId, prev);
     store.putRequest(deviceId, requestId, "received");
 
+    if (isNoticeRequest(text)) {
+      this.readNotices(deviceId);
+      const result = { destination: "gateway", intent: "read_notices" };
+      store.putRequest(deviceId, requestId, "accepted", result);
+      return this.sendTo(deviceId, { type: "request.accepted", requestId, ...result });
+    }
+
     const sessions = await this.catalog.list();
     let decision: RoutingDecision;
     if (sessionId) {
@@ -258,6 +305,7 @@ export class Gateway {
 
       if (intent === "send") {
         this.turns.set(sessionId, { stream: new SentenceStream(), streamed: false, spoken: 0, capped: false });
+        this.o.onOwnSend?.(d.destination, sessionId);
         await adapter.sendMessage(sessionId, text);
         store.setCurrentSession(deviceId, sessionId);
       } else if (intent === "interrupt") {

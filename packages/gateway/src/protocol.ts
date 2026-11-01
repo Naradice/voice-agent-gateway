@@ -40,6 +40,11 @@ export type ServerMessage =
    * ephemeral=true(eventId なし)は保存されない一時的な通知(例: モデル起動中)。端末は最後に処理した位置を更新してはならない。
    */
   | { type: "speech.enqueue"; eventId?: string; ephemeral?: boolean; priority: Priority; text: string; sessionId?: string; destination?: string }
+  /**
+   * 待機メッセージ(読み上げない通知)の未読件数。接続時と変化のたびに送る。端末は通知に件数を出す。
+   * 読むには、利用者が「待機メッセージを読んで」と言う(message.send)。読み上げ後は count: 0 が届く。
+   */
+  | { type: "notices"; count: number; latest?: string }
   /** プロトコルレベルのエラー(不正なメッセージなど)。接続は維持する */
   | { type: "error"; code: "invalid" | "internal" | "not_ready"; message: string };
 

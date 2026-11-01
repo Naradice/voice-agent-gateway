@@ -14,8 +14,8 @@ Android(PTT・音声認識・読み上げ) ⇄ WebSocket(Tailscale) ⇄ Gateway 
 
 | 部分 | 状態 |
 |---|---|
-| Gateway(`packages/gateway`) | 動作確認済み: ローカルLLMでの会話、WebSocket(認証・再接続・再送)、読み上げ整形、検索(SearXNG)。テスト 106 件。**未確認: Codex への書き込み経由の実運用(利用上限のため)、OpenAI API** |
-| Android(`android/`) | 実機(moto g05)で確認済み: 接続、音声認識、読み上げ、画面ロック中・画面OFFの継続、音量下キーの PTT。**未確認: 通知の「話す」ボタン、イヤホンのボタン、長時間の安定性、バッテリー最適化の影響** |
+| Gateway(`packages/gateway`) | 動作確認済み: ローカルLLMでの会話、WebSocket(認証・再接続・再送)、読み上げ整形、検索(SearXNG)。テスト 116 件。**未確認: Codex への書き込み経由の実運用(利用上限のため)、OpenAI API** |
+| Android(`android/`) | 実機(moto g05)で確認済み: 接続、音声認識、読み上げ、画面ロック中・画面OFFの継続、音量下キーの PTT。**未確認: 待機メッセージの通知、 通知の「話す」ボタン、イヤホンのボタン、長時間の安定性、バッテリー最適化の影響** |
 | ローカルLLM | `qwen3-4b-instruct-cpu`(CPU のみ。GPU は使わない)。約 5.4 トークン/秒、初回トークン約 0.4 秒 |
 | ルーター(誰に送るか) | ルールのみの方式を評価中(`packages/phase0b-router-eval`)。**現在の Gateway は、まだ会話先を自動では選ばない**(ローカルLLMが既定、Codex は明示的に選ぶ) |
 | Codex 連携(Phase 0A) | 読み取り・追記・通知購読は実機で確認。**承認要求の検証(P0-08)は利用上限のため中断中** |
@@ -30,7 +30,7 @@ Android(PTT・音声認識・読み上げ) ⇄ WebSocket(Tailscale) ⇄ Gateway 
 | `packages/gateway` | Gateway 本体。`AgentAdapter`(Codex / ローカルLLM / OpenAI)、SQLite の履歴、WebSocket サーバー、検索、読み上げ整形、CLI |
 | `packages/phase0a-codex-probe` | Codex App Server を調べた使い捨てプローブ(読み取り `probe.ts`、書き込み `probe-write.ts`、承認 `probe-approval.ts`) |
 | `packages/phase0b-router-eval` | ルーターのオフライン評価(ルール方式、TF-IDF による比較) |
-| `android/core` | Android に依存しない Kotlin/JVM。プロトコル、再接続、読み上げキュー、`VoiceController`。テスト 47 件 |
+| `android/core` | Android に依存しない Kotlin/JVM。プロトコル、再接続、読み上げキュー、`VoiceController`。テスト 48 件 |
 | `android/app` | 画面、フォアグラウンドサービス、音声認識・合成、設定、音量キー/イヤホンの PTT |
 
 ## セットアップ(Windows)
@@ -72,7 +72,7 @@ npm run gateway:code
 | `LOCAL_USER_PROFILE` `LOCAL_TIMEZONE` | 居住地など毎回渡す利用者情報、現在日時の表示に使うタイムゾーン |
 | `LOCAL_SUPPRESS_THINKING` `LOCAL_CONTEXT` | 思考を止める指定の強制(通常は不要)、文脈長の警告 |
 | `SEARCH_PROVIDER` `SEARXNG_URL` `BRAVE_API_KEY` | 最新情報の検索(任意。検索語は外部へ出る場合がある) |
-| `CODEX_BIN` | Codex の実行ファイル(Codex 連携を使う場合) |
+| `VAG_CODEX` `CODEX_BIN` `CODEX_POLL_SECONDS` | Codex 連携を有効にする(`VAG_CODEX=1`)、実行ファイル、スレッドの確認間隔(既定 60 秒、`0` で無効。下記) |
 
 見本は `.env.example` と `gateway:init` が作るファイル。
 
@@ -90,6 +90,11 @@ npm run gateway:code
 | `cd android && ./gradlew :core:test` | Android core のテスト(Node が PATH にあること) |
 
 Windows のコマンド例は PowerShell の書き方(`$env:名前="値"`)の箇所がある。cmd.exe では `set 名前=値` に読み替える。
+
+## 待機メッセージ(Codex の作業完了の通知)
+`VAG_CODEX=1` のとき、Gateway は 60 秒ごとに Codex のスレッド一覧を読み(書き込み権を使わないので Desktop を妨げない)、**更新が止まったスレッド**を「作業が一区切りしました」という待機メッセージにする。**自動では読み上げない。** スマホの通知に件数が出て、「読む」ボタンか、音声の「待機メッセージを読んで」で読み上げる(未読は3日・最大50件まで保持)。
+- 判定は「更新時刻が変わった後、次の確認でも変わっていない」。ターンの状態(completed)は見ていないので、長時間更新のない実行中のスレッドは早めに通知されることがある。この Gateway から送った指示による更新は通知しない。**実機では未確認。**
+- 起動直後の確認は基準を覚えるだけで、通知しない。
 
 ## 画面を見ずに使う(Android)
 - **音量下キー:** 画面ロック中・画面OFFでも「話す」になる(アプリの「音量下キーで話す」をオン、端末の「ユーザー補助」で許可)。動作中は音量下で音量を変えられない。戻すにはスイッチをオフ、または通知の「停止」。

@@ -234,4 +234,20 @@ class VoiceControllerTest {
         r.link.state.value = ConnectionState.AUTH_FAILED
         eventually(message = "notice") { r.tts.spoken.any { it.contains("認証に失敗しました") } }
     }
+
+    @Test fun `the unread notice count follows the gateway, resets on a new connection, and reading sends the fixed phrase`() {
+        val r = rig()
+        r.connect()
+        r.link.deliver(Notices(2, "Codexの「A」で作業が一区切りしました。"))
+        eventually(message = "count 2") { r.controller.notices.value.count == 2 }
+        assertEquals("Codexの「A」で作業が一区切りしました。", r.controller.notices.value.latest)
+        assertTrue(r.tts.spoken.isEmpty(), "通知は自動では読み上げない")
+
+        r.controller.readNotices()
+        eventually(message = "sent") { r.link.sentOf<MessageSend>().isNotEmpty() }
+        assertEquals(READ_NOTICES_PHRASE, r.link.sentOf<MessageSend>().last().text)
+
+        r.link.deliver(HelloOk("pixel", "2026-11-01T00:00:00Z", 0, "inst"))
+        eventually(message = "reset") { r.controller.notices.value.count == 0 }
+    }
 }

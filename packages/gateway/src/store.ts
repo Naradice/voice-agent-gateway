@@ -24,6 +24,8 @@ export type RequestState = "received" | "dispatching" | "awaiting_confirmation" 
 
 export interface RequestRecord { state: RequestState; result?: any; createdAt: string }
 
+export interface Notice { id: number; kind: string; text: string; sessionId?: string; destination?: string; createdAt: string }
+
 export interface UsageTotals { inputTokens: number; outputTokens: number; requests: number }
 
 export class Store {
@@ -60,6 +62,10 @@ export class Store {
       CREATE TABLE IF NOT EXISTS routing_decisions (
         id INTEGER PRIMARY KEY AUTOINCREMENT, device_id TEXT NOT NULL, request_id TEXT NOT NULL,
         utterance TEXT NOT NULL, decision TEXT NOT NULL, created_at TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS notices (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL, session_id TEXT, destination TEXT,
+        text TEXT NOT NULL, created_at TEXT NOT NULL, read_at TEXT
       );
       CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
       PRAGMA foreign_keys = ON;
@@ -153,6 +159,32 @@ export class Store {
 
   pruneEvents(olderThan: string): void {
     this.db.prepare("DELETE FROM pending_events WHERE created_at < ?").run(olderThan);
+  }
+
+  // --- 待機メッセージ(端末へ自動では読み上げない通知。利用者が「待機メッセージを読んで」と言うまで保持する) ---
+
+  addNotice(n: { kind: string; text: string; sessionId?: string; destination?: string }): number {
+    const r = this.db.prepare("INSERT INTO notices (kind, session_id, destination, text, created_at) VALUES (?,?,?,?,?)")
+      .run(n.kind, n.sessionId ?? null, n.destination ?? null, n.text, new Date().toISOString());
+    return Number(r.lastInsertRowid);
+  }
+
+  /** 未読の待機メッセージを古い順に返す。 */
+  pendingNotices(): Notice[] {
+    return (this.db.prepare("SELECT id, kind, session_id, destination, text, created_at FROM notices WHERE read_at IS NULL ORDER BY id").all() as any[])
+      .map((r) => ({ id: r.id, kind: r.kind, sessionId: r.session_id ?? undefined, destination: r.destination ?? undefined, text: r.text, createdAt: r.created_at }));
+  }
+
+  markNoticesRead(ids: number[]): void {
+    const stmt = this.db.prepare("UPDATE notices SET read_at = ? WHERE id = ? AND read_at IS NULL");
+    const now = new Date().toISOString();
+    for (const id of ids) stmt.run(now, id);
+  }
+
+  /** 期限切れと、多すぎる未読(新しい maxKeep 件を残す)を捨てる。読み済みも期限で消す。 */
+  pruneNotices(olderThan: string, maxKeep: number): void {
+    this.db.prepare("DELETE FROM notices WHERE created_at < ?").run(olderThan);
+    this.db.prepare("DELETE FROM notices WHERE id NOT IN (SELECT id FROM notices ORDER BY id DESC LIMIT ?)").run(maxKeep);
   }
 
   // --- 要求の記録 (§8.4): requestId による重複排除と、結果不明の検出 ---

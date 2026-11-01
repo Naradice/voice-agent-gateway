@@ -16,6 +16,7 @@ import android.os.IBinder
 import android.view.KeyEvent
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
+import dev.vag.core.Notices
 import dev.vag.core.VoiceState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -49,6 +50,7 @@ class VoiceService : Service() {
             NotificationChannel(CHANNEL, "Voice Agent", NotificationManager.IMPORTANCE_LOW)
                 .apply { lockscreenVisibility = Notification.VISIBILITY_PUBLIC }, // ロック画面にも状態と「話す」ボタンを出す
         )
+        nm.createNotificationChannel(NotificationChannel(NOTICE_CHANNEL, "待機メッセージ", NotificationManager.IMPORTANCE_DEFAULT))
         try {
             ServiceCompat.startForeground(this, ID, notification("起動中"), ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE)
         } catch (_: Exception) {
@@ -60,6 +62,8 @@ class VoiceService : Service() {
         VoiceRuntime.syncSettings(this)
         VoiceRuntime.start(this)
         scope.launch { VoiceRuntime.status.collect { nm.notify(ID, notification(it)) } }
+        // 待機メッセージは読み上げず、通知に件数を出す。「読む」を押す(または「待機メッセージを読んで」と話す)と読み上げる。
+        scope.launch { VoiceRuntime.notices.collect { showNotices(nm, it) } }
         scope.launch {
             combine(VoiceRuntime.earphoneButton, VoiceRuntime.volumeDownPtt) { e, v -> e to v }
                 .collect { (e, v) -> applyMediaSession(e, v) }
@@ -79,6 +83,10 @@ class VoiceService : Service() {
                 VoiceRuntime.stop()
                 stopSelf()
                 return START_NOT_STICKY
+            }
+            ACTION_READ_NOTICES -> {
+                VoiceRuntime.readNotices()
+                return START_STICKY
             }
             ACTION_PTT -> {
                 VoiceRuntime.pressPtt()
@@ -147,6 +155,24 @@ class VoiceService : Service() {
         t.startTone(ToneGenerator.TONE_PROP_BEEP, 150)
     }
 
+    /** 未読が増えたときだけ鳴らす(件数の更新では鳴らさない)。0 件になったら消す。 */
+    private fun showNotices(nm: NotificationManager, n: Notices) {
+        if (n.count <= 0) { nm.cancel(NOTICE_ID); return }
+        nm.notify(
+            NOTICE_ID,
+            NotificationCompat.Builder(this, NOTICE_CHANNEL)
+                .setSmallIcon(android.R.drawable.ic_dialog_info)
+                .setContentTitle("待機メッセージ ${n.count}件")
+                .setContentText(n.latest ?: "")
+                .setStyle(NotificationCompat.BigTextStyle().bigText(n.latest ?: ""))
+                .setOnlyAlertOnce(true)
+                .setVisibility(NotificationCompat.VISIBILITY_PRIVATE) // ロック画面には件数だけ(内容は隠す)
+                .setContentIntent(PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE))
+                .addAction(0, "読む", serviceIntent(3, ACTION_READ_NOTICES))
+                .build(),
+        )
+    }
+
     private fun serviceIntent(requestCode: Int, action: String) =
         PendingIntent.getService(this, requestCode, Intent(this, VoiceService::class.java).setAction(action), PendingIntent.FLAG_IMMUTABLE)
 
@@ -164,8 +190,11 @@ class VoiceService : Service() {
     companion object {
         private const val CHANNEL = "voice_agent"
         private const val ID = 1
+        private const val NOTICE_ID = 2
+        private const val NOTICE_CHANNEL = "voice_agent_notices"
         const val ACTION_STOP = "dev.vag.app.STOP"
         const val ACTION_PTT = "dev.vag.app.PTT"
+        const val ACTION_READ_NOTICES = "dev.vag.app.READ_NOTICES"
         private val PTT_KEYS = setOf(
             KeyEvent.KEYCODE_HEADSETHOOK,
             KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,

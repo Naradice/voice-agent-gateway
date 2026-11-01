@@ -3,6 +3,7 @@ package dev.vag.app
 import android.content.Context
 import dev.vag.core.ConnectionState
 import dev.vag.core.GatewayClient
+import dev.vag.core.Notices
 import dev.vag.core.VoiceController
 import dev.vag.core.VoiceState
 import dev.vag.core.tokenFingerprint
@@ -65,6 +66,10 @@ object VoiceRuntime {
         _earphoneButton.value = enabled
     }
 
+    private val _notices = MutableStateFlow(Notices(0))
+    /** 待機メッセージの未読件数(通知に出す)。 */
+    val notices: StateFlow<Notices> = _notices
+
     private val _status = MutableStateFlow("未接続")
     /** 通知に出す短い状態表示。 */
     val status: StateFlow<String> = _status
@@ -95,6 +100,7 @@ object VoiceRuntime {
         s.launch { client.lastError.collect { _lastError.value = it } }
         s.launch { combine(client.state, controller.state) { c, v -> statusText(c, v) }.collect { _status.value = it } }
         s.launch { controller.state.collect { _voiceState.value = it } }
+        s.launch { controller.notices.collect { _notices.value = it } }
         controller.start()
         _controller.value = controller
     }
@@ -107,6 +113,7 @@ object VoiceRuntime {
         scope = null
         _controller.value = null
         _activeFingerprint.value = null
+        _notices.value = Notices(0)
         _voiceState.value = VoiceState.DISCONNECTED
         _connection.value = ConnectionState.DISCONNECTED
         _status.value = "停止中"
@@ -118,6 +125,9 @@ object VoiceRuntime {
     }
 
     fun pressPtt() { _controller.value?.onPttPressed() }
+
+    /** 待機メッセージを読み上げさせる(通知の「読む」ボタン)。 */
+    fun readNotices() { _controller.value?.readNotices() }
 
     fun statusText(c: ConnectionState, v: VoiceState): String = when (c) {
         ConnectionState.AUTH_FAILED -> "認証に失敗しました(設定を確認)"
