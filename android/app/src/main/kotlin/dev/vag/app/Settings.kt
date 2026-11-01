@@ -69,6 +69,11 @@ class Settings(context: Context) {
         get() = prefs.getBoolean("earphoneButton", true)
         set(v) { prefs.edit().putBoolean("earphoneButton", v).apply() }
 
+    /** 音量下キーで話す(ユーザー補助サービスの許可が別に必要)。オンの間、アプリ動作中は音量下キーで音量を変えられない。 */
+    var volumeDownPtt: Boolean
+        get() = prefs.getBoolean("volumeDownPtt", false)
+        set(v) { prefs.edit().putBoolean("volumeDownPtt", v).apply() }
+
     val isConfigured: Boolean get() = !url.isNullOrBlank() && prefs.contains("token")
 
     val positions: PositionStore = object : PositionStore {

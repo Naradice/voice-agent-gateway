@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Voice Agent</string>
+    <string name="volume_key_service_description">音量下キーを「話す」ボタンとして受け取ります。画面の内容は読み取りません。</string>
 </resources>

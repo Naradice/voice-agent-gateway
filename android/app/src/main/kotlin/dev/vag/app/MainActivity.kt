@@ -138,6 +138,7 @@ private fun MainScreen(onSaveSettings: (String, String?) -> Unit) {
             Spacer(Modifier.width(8.dp))
             Text("イヤホンのボタンで話す")
         }
+        VolumeKeyRow(context)
         TextButton(onClick = { showSettings = true }) { Text("設定") }
     }
 
@@ -148,6 +149,25 @@ private fun MainScreen(onSaveSettings: (String, String?) -> Unit) {
             onDismiss = { showSettings = false },
             onSave = { u, t -> showSettings = false; onSaveSettings(u, t) },
         )
+    }
+}
+
+/**
+ * 音量下キーで話す。スイッチのほかに、ユーザー補助サービスの許可が要る(端末の設定画面で1回だけ)。
+ * 許可の状態は画面に戻ったときに見直す。
+ */
+@Composable
+private fun VolumeKeyRow(context: android.content.Context) {
+    var enabled by remember { mutableStateOf(Settings(context).volumeDownPtt) }
+    val allowed by VolumeKeyService.connected.collectAsState()
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Switch(checked = enabled, onCheckedChange = { enabled = it; Settings(context).volumeDownPtt = it })
+        Spacer(Modifier.width(8.dp))
+        Text("音量下キーで話す(動作中は音量を変えられません)")
+    }
+    if (enabled && !allowed) {
+        Text("端末の許可が必要です。「ユーザー補助」で「Voice Agent」をオンにしてください。", color = MaterialTheme.colorScheme.error)
+        TextButton(onClick = { context.startActivity(Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)) }) { Text("ユーザー補助の設定を開く") }
     }
 }
 
