@@ -40,7 +40,7 @@ test("streams chat-completions deltas to Ollama's default endpoint, with no auth
   assert.deepEqual(events.map((e) => e.type), ["turn.started", "message.delta", "message.delta", "message.completed", "turn.completed"]);
   assert.equal(calls[0].url, "http://127.0.0.1:11434/v1/chat/completions");
   assert.equal(calls[0].headers.authorization, undefined);
-  assert.deepEqual(calls[0].body.messages, [{ role: "system", content: "be brief\n\n/no_think" }, { role: "user", content: "やあ" }]);
+  assert.deepEqual(calls[0].body.messages, [{ role: "system", content: "be brief" }, { role: "user", content: "やあ" }], "Qwen3 以外には /no_think を付けない");
   assert.equal(calls[0].body.stream, true);
   assert.equal(calls[0].body.reasoning_effort, "none");
   assert.deepEqual(store.messages(s.id).map((m) => m.text), ["やあ", "こんにちは"]);
@@ -204,4 +204,26 @@ test("replies are capped by default so that a runaway generation cannot last for
   await custom.adapter.sendMessage(s2.id, "q");
   await d2;
   assert.equal(custom.calls[0].body.max_tokens, 120);
+});
+
+test("for Qwen3, /no_think goes at the end of the latest user message only in the request, never in the system prompt or the stored history", async () => {
+  const { adapter, store, calls } = setup(() => streamOf(chunks(["A"])), { model: "qwen3-4b-cpu" });
+  const s = await adapter.createSession();
+  for (const q of ["一つ目", "二つ目"]) {
+    const done = untilCompleted(adapter, s.id);
+    await adapter.sendMessage(s.id, q);
+    await done;
+  }
+  const msgs = calls[1].body.messages;
+  assert.equal(msgs[0].content, "be brief", "システム指示には入れない");
+  assert.equal(msgs.at(-1).content, "二つ目\n/no_think", "最後の発話の末尾");
+  assert.equal(msgs.find((m: any) => m.content.startsWith("一つ目")).content, "一つ目", "前の発話には付けない");
+  assert.deepEqual(store.messages(s.id).map((m) => m.text), ["一つ目", "A", "二つ目", "A"], "保存される履歴には入らない");
+
+  const off = setup(() => streamOf(chunks(["A"])), { model: "qwen3-4b-cpu", suppressThinking: false });
+  const s2 = await off.adapter.createSession();
+  const d2 = untilCompleted(off.adapter, s2.id);
+  await off.adapter.sendMessage(s2.id, "q");
+  await d2;
+  assert.equal(off.calls[0].body.messages.at(-1).content, "q");
 });

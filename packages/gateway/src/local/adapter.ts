@@ -70,16 +70,27 @@ export class LocalLLMAdapter extends ConversationAdapter {
   }
 
   protected body(history: ChatMessage[], context?: string) {
-    const system = [this.o.instructions, context, this.o.suppressThinking === false ? undefined : "/no_think"].filter(Boolean).join("\n\n");
+    const system = [this.o.instructions, context].filter(Boolean).join("\n\n");
     return {
       model: this.o.model,
-      messages: [...(system ? [{ role: "system", content: system }] : []), ...history],
+      messages: [...(system ? [{ role: "system", content: system }] : []), ...this.withNoThink(history)],
       stream: true,
       stream_options: { include_usage: true },
       ...(this.o.suppressThinking === false ? {} : { reasoning_effort: "none" }),
       ...(this.o.extraBody && ("max_tokens" in this.o.extraBody || "max_completion_tokens" in this.o.extraBody) ? {} : { max_tokens: DEFAULT_MAX_TOKENS }),
       ...this.o.extraBody, // 上書き可
     };
+  }
+
+  /**
+   * Qwen3 のソフトスイッチ /no_think を、送る分の最後の利用者の発話の末尾に付ける(保存する履歴には入れない)。
+   * システム指示の中では効かなかった(実測)。Qwen3 以外のモデルには付けない(そのまま文字として読まれるため)。
+   */
+  private withNoThink(history: ChatMessage[]): ChatMessage[] {
+    if (this.o.suppressThinking === false || !/qwen3/i.test(this.o.model)) return history;
+    const i = history.map((m) => m.role).lastIndexOf("user");
+    if (i < 0) return history;
+    return history.map((m, j) => (j === i ? { ...m, content: `${m.content}\n/no_think` } : m));
   }
 
   protected createParser(): TurnParser {
