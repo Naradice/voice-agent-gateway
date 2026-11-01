@@ -156,3 +156,7 @@
 - **どの指定でも、モデルは考え続けた**(全条件で上限に到達)。14B では効いた指定が、4B では効かない。**この `qwen3:4b` は思考専用のモデル(Qwen3 の 2025 年後半の thinking 版)である疑いが強い。** 思考専用版はテンプレートが思考の開始を自動で入れるため、出力に開始タグがない(最初に見たタグのない考えの文章と一致)。`ollama show` では確認できていない(推測)。
 - **結論: 思考をしない版(instruct)に替える。** `ollama pull qwen3:4b-instruct`(タグ名は記憶で未確認。ollama.com/library/qwen3 のタグ一覧で確認)→ `npm run ollama:model -- qwen3:4b-instruct` → `.env` の `LOCAL_MODEL=qwen3-4b-instruct-cpu`。
 - **対応(実装済み):** (1) 名前に `instruct` を含むモデルには、思考を止める指定(`/no_think`・`reasoning_effort`)を送らない(`LOCAL_SUPPRESS_THINKING=0/1` で上書き)。(2) 本文が空のまま終わった場合(考えだけで上限に達した等)は、無言で終わらず「モデルが答えを返しませんでした」と声で伝える。
+
+#### instruct 版への切り替えで解決 (2026-11-01, qwen3-4b-instruct-cpu)
+
+`qwen3:4b-instruct`(思考をしない版)から作った CPU 派生モデルで、`diagnose:thinking` は全条件で別欄の思考 0 文字・本文は日本語の短い回答になった。`smoke:local` は、ウォームアップ 2.3 秒、初回トークン 362ms、30 トークンで全体 5.9 秒、約 5.4 トークン/秒(CPU のみ)。`qwen3:4b` は思考を切り替えられないモデルだったと判断する。既定の `LOCAL_MODEL` を `qwen3-4b-instruct-cpu` にした。

@@ -21,7 +21,7 @@ export function buildEnvFile(o: EnvFileOptions): string {
     "# ローカルLLM: 既定は GPU を使わない構成(実験に GPU を空けておくため)。",
     "# 小さいモデルを CPU とメモリだけで動かす。GPU を使わない派生モデルを `npm run ollama:model` で作る(num_gpu 0)。",
     "# 普段使いの Ollama(11434)でそのまま使える。環境変数で GPU を隠す別インスタンス(npm run ollama:cpu)は必須ではない。",
-    "LOCAL_MODEL=qwen3-4b-cpu",
+    "LOCAL_MODEL=qwen3-4b-instruct-cpu",
     "LOCAL_DEVICE=cpu           # npm run llm で、本当に GPU を使っていないか確認するための宣言",
     "LOCAL_HISTORY_CHARS=3000   # CPU は長い履歴の処理が遅いので短くする",
     "LOCAL_MAX_TOKENS=300       # 返答を短く打ち切る(音声向け)",
