@@ -147,3 +147,12 @@
 - **問題:** `smoke:local` の `回答:` が、回答ではなく、モデルの考え(英語の独り言: "Okay, the user said…")だった。`<think>` のタグがなく、除去も検出もされない。`reasoning_effort:"none"` は 4B(派生モデル)では効かず、`/no_think` をシステム指示の末尾に付けても効かなかった(14B の実験でも同様)。
 - **対応(未検証):** (1) `/no_think` を、送る分の**最後の利用者の発話の末尾**に付ける(Qwen3 の説明どおり。システム指示では効かない)。履歴には保存しない。Qwen3 以外には付けない。(2) `npm run diagnose:thinking` を、返答の上限つきで作り直し、どの指定が効くかを6条件で切り分ける(/v1 で /no_think の位置と reasoning_effort、ネイティブ API の `think:false`)。ネイティブ API が効けば、会話の通信をネイティブ API に移す(`options` で `num_gpu`・`num_ctx`・`num_thread` もリクエストごとに指定できる)。
 - 別案: 思考をしない版のモデル(Qwen3 の `instruct` 系)。タグ名は Ollama のライブラリで確認する。
+
+#### 思考の診断の結果と結論 (2026-11-01, `npm run diagnose:thinking`, qwen3-4b-cpu, 上限 150 トークン)
+| 条件 | 本文 | 別欄の思考 |
+|---|---|---|
+| B (/v1, 末尾に /no_think) / D (何も指定しない) | 0文字 | 534〜573文字 — 考えは分離されるが、上限を考えで使い切った |
+| A (/no_think + reasoning_effort:none) / C (reasoning_effort:none) / E (think:false) / F (think:false + /no_think) | 553〜605文字(英語の独り言) | 0文字 — 思考の指定をすると分離されず、考えが本文に出る |
+- **どの指定でも、モデルは考え続けた**(全条件で上限に到達)。14B では効いた指定が、4B では効かない。**この `qwen3:4b` は思考専用のモデル(Qwen3 の 2025 年後半の thinking 版)である疑いが強い。** 思考専用版はテンプレートが思考の開始を自動で入れるため、出力に開始タグがない(最初に見たタグのない考えの文章と一致)。`ollama show` では確認できていない(推測)。
+- **結論: 思考をしない版(instruct)に替える。** `ollama pull qwen3:4b-instruct`(タグ名は記憶で未確認。ollama.com/library/qwen3 のタグ一覧で確認)→ `npm run ollama:model -- qwen3:4b-instruct` → `.env` の `LOCAL_MODEL=qwen3-4b-instruct-cpu`。
+- **対応(実装済み):** (1) 名前に `instruct` を含むモデルには、思考を止める指定(`/no_think`・`reasoning_effort`)を送らない(`LOCAL_SUPPRESS_THINKING=0/1` で上書き)。(2) 本文が空のまま終わった場合(考えだけで上限に達した等)は、無言で終わらず「モデルが答えを返しませんでした」と声で伝える。

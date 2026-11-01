@@ -227,3 +227,43 @@ test("for Qwen3, /no_think goes at the end of the latest user message only in th
   await d2;
   assert.equal(off.calls[0].body.messages.at(-1).content, "q");
 });
+
+test("models with instruct in the name (non-thinking variants) get neither /no_think nor reasoning_effort, unless forced", async () => {
+  const { adapter, calls } = setup(() => streamOf(chunks(["A"])), { model: "qwen3-4b-instruct-cpu" });
+  const s = await adapter.createSession();
+  const done = untilCompleted(adapter, s.id);
+  await adapter.sendMessage(s.id, "やあ");
+  await done;
+  assert.equal(calls[0].body.reasoning_effort, undefined);
+  assert.equal(calls[0].body.messages.at(-1).content, "やあ", "/no_think は付かない");
+
+  const forced = setup(() => streamOf(chunks(["A"])), { model: "qwen3-4b-instruct-cpu", suppressThinking: true });
+  const s2 = await forced.adapter.createSession();
+  const d2 = untilCompleted(forced.adapter, s2.id);
+  await forced.adapter.sendMessage(s2.id, "やあ");
+  await d2;
+  assert.equal(forced.calls[0].body.reasoning_effort, "none", "明示すれば送る");
+});
+
+test("a reply with no visible text (all budget spent on separate thinking) is reported instead of ending in silence", async () => {
+  const reasoningOnly = `data: ${JSON.stringify({ choices: [{ delta: { reasoning: "考え中" } }] })}\n\ndata: [DONE]\n\n`;
+  const { adapter, store } = setup(() => streamOf(reasoningOnly));
+  const s = await adapter.createSession();
+  const done = untilCompleted(adapter, s.id);
+  await adapter.sendMessage(s.id, "やあ");
+  const last = (await done).at(-1) as Extract<AgentEvent, { type: "turn.completed" }>;
+  assert.equal(last.status, "error");
+  assert.match(last.error!.message, /答えを返しませんでした/);
+  assert.equal(last.error!.retryable, true);
+  assert.deepEqual(store.messages(s.id).map((m) => m.text), ["やあ"], "空の回答は保存しない");
+});
+
+test("text held back at the end of the stream (a possible partial tag) is still delivered and does not count as an empty reply", async () => {
+  const { adapter, store } = setup(() => streamOf(chunks(["<"])));
+  const s = await adapter.createSession();
+  const done = untilCompleted(adapter, s.id);
+  await adapter.sendMessage(s.id, "やあ");
+  const events = await done;
+  assert.equal((events.at(-1) as any).status, "ok", "空の応答として扱わない");
+  assert.deepEqual(store.messages(s.id).map((m) => m.text), ["やあ", "<"]);
+});

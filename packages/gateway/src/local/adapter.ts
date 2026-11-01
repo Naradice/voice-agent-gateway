@@ -19,7 +19,9 @@ export interface LocalLLMAdapterOptions extends ConversationOptions {
    * 推論モデル(Qwen3 など)の思考を止める。既定 true。
    * 実測(Ollama /v1, qwen3:14b): reasoning_effort:"none" で思考が完全に止まる(446→10トークン)。
    * システム指示の /no_think だけでは止まらなかった(併用しているが、単独では効果なし)。
-   * 思考を持たないモデルでは reasoning_effort が拒否される可能性があるため、その場合は false にする。
+   * 未指定なら、名前に instruct を含むモデル(思考をしない版)には送らない。思考を持たないモデルでは reasoning_effort が
+   * 拒否される可能性があるため、その他のモデルで拒否されるなら false にする。
+   * 注意: 思考専用のモデル(Qwen3 の thinking 版など)では、どの指定でも思考は止まらない(実測)。instruct 版に替えること。
    * 本文に出た <think>…</think> は常に除去し、delta.reasoning 等の別フィールドは読まない。
    */
   suppressThinking?: boolean;
@@ -76,10 +78,15 @@ export class LocalLLMAdapter extends ConversationAdapter {
       messages: [...(system ? [{ role: "system", content: system }] : []), ...this.withNoThink(history)],
       stream: true,
       stream_options: { include_usage: true },
-      ...(this.o.suppressThinking === false ? {} : { reasoning_effort: "none" }),
+      ...(this.controlsThinking ? { reasoning_effort: "none" } : {}),
       ...(this.o.extraBody && ("max_tokens" in this.o.extraBody || "max_completion_tokens" in this.o.extraBody) ? {} : { max_tokens: DEFAULT_MAX_TOKENS }),
       ...this.o.extraBody, // 上書き可
     };
+  }
+
+  /** 思考を止める指定を送るか。明示の suppressThinking が優先。未指定なら、名前に instruct を含む(思考をしない版の)モデルには送らない。 */
+  private get controlsThinking(): boolean {
+    return this.o.suppressThinking ?? !/instruct/i.test(this.o.model);
   }
 
   /**
@@ -87,7 +94,7 @@ export class LocalLLMAdapter extends ConversationAdapter {
    * システム指示の中では効かなかった(実測)。Qwen3 以外のモデルには付けない(そのまま文字として読まれるため)。
    */
   private withNoThink(history: ChatMessage[]): ChatMessage[] {
-    if (this.o.suppressThinking === false || !/qwen3/i.test(this.o.model)) return history;
+    if (!this.controlsThinking || !/qwen3/i.test(this.o.model)) return history;
     const i = history.map((m) => m.role).lastIndexOf("user");
     if (i < 0) return history;
     return history.map((m, j) => (j === i ? { ...m, content: `${m.content}\n/no_think` } : m));

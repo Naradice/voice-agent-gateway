@@ -179,6 +179,10 @@ export abstract class ConversationAdapter implements AgentAdapter {
       state.partial += tail;
       this.emit({ type: "message.delta", sessionId, text: tail });
     }
+    // 本文が空のまま終わった(考えだけで上限に達した等)。無言で終わらず、利用者に伝える。末尾を回収したあとで判定する。
+    if (!state.partial && !error && !state.interrupted) {
+      error = new AgentError("unavailable", "モデルが答えを返しませんでした。もう一度お願いします。", { retryable: true });
+    }
 
     // 解放してから通知する(受信側がすぐ次の指示を送れるように)。
     this.inflight.delete(sessionId);

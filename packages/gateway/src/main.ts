@@ -65,6 +65,8 @@ registry.register(new LocalLLMAdapter({
   contextTokens: env.LOCAL_CONTEXT ? Number(env.LOCAL_CONTEXT) : undefined,
   // CPU は長い履歴の処理が遅い。履歴を短くし、返答も短く打ち切る(音声向け)。
   ...(historyChars ? { maxHistoryChars: historyChars } : {}),
+  // 思考を止める指定を送るか。未指定なら自動(instruct を名前に含むモデルには送らない)。LOCAL_SUPPRESS_THINKING=0 で送らない、=1 で必ず送る。
+  ...(env.LOCAL_SUPPRESS_THINKING === "0" ? { suppressThinking: false } : env.LOCAL_SUPPRESS_THINKING === "1" ? { suppressThinking: true } : {}),
   ...(maxTokens ? { extraBody: { max_tokens: maxTokens } } : {}),
   instructions: "あなたは音声アシスタントです。短く、話し言葉で答えてください。コードや長いURLは読み上げません。",
   lifecycle: new OllamaLifecycle({ model, baseUrl: ollama, keepAlive: env.VAG_KEEP_ALIVE ?? "10m" }),
