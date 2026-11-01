@@ -17,7 +17,7 @@ test("buildEnvFile output parses back to the same device list and a long random 
   assert.equal(env.VAG_HOST, "100.1.2.3");
   assert.equal(env.VAG_PORT, "9000");
   assert.equal(env.LOCAL_MODEL, "qwen3-4b-cpu", "GPU を使わない派生モデル");
-  assert.equal(env.OLLAMA_BASE_URL, "http://127.0.0.1:11435/v1", "既定は GPU を使わない Ollama");
+  assert.equal(env.OLLAMA_BASE_URL, undefined, "普段使いの Ollama(11434)を使う。別インスタンスは必須ではない");
   assert.equal(env.LOCAL_DEVICE, "cpu");
   assert.equal(env.SEARCH_PROVIDER, undefined, "任意の設定はコメントアウトされている");
 });

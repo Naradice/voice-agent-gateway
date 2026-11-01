@@ -79,3 +79,27 @@ export function cpuModelName(base: string): string {
 export function cpuModelfile(base: string, numCtx = 4096): string {
   return `FROM ${base.replace(/-cpu$/, "")}\nPARAMETER num_gpu 0\nPARAMETER num_ctx ${numCtx}\n`;
 }
+
+/**
+ * Ollama に接続できないときの案内。生のスタックトレースではなく、何を直せばよいかを示す。
+ * 接続の失敗でなければ undefined(呼び出し側がそのまま投げ直す)。
+ */
+export function explainConnectionError(e: unknown, baseUrl = "http://127.0.0.1:11434/v1"): string | undefined {
+  const code: string | undefined = (e as any)?.cause?.code ?? (e as any)?.code;
+  const msg = e instanceof Error ? e.message : String(e);
+  const connectionFailure = ["ECONNREFUSED", "ENOTFOUND", "ECONNRESET", "UND_ERR_CONNECT_TIMEOUT", "EHOSTUNREACH"].includes(code ?? "") || /fetch failed/i.test(msg);
+  if (!connectionFailure) return undefined;
+  const target = (() => { try { const u = new URL(baseUrl); return u.host; } catch { return baseUrl; } })();
+  const lines = [`Ollama(${target})に接続できません(${code ?? msg})。`];
+  if (portOf(baseUrl, 0) === CPU_OLLAMA_PORT) {
+    lines.push(
+      "  11435 は、環境変数で GPU を隠す別インスタンス(npm run ollama:cpu)の既定のポートです。起動していないようです。",
+      "  この別インスタンスは必須ではありません。GPU を使わない派生モデル(npm run ollama:model)は、普段使いの Ollama でも有効です。",
+      "  → .env の OLLAMA_BASE_URL を http://127.0.0.1:11434/v1 にする(または、その行を消す)。",
+      "  別インスタンスを使い続ける場合は、別のウィンドウで npm run ollama:cpu を起動してください。",
+    );
+  } else {
+    lines.push("  Ollama が起動しているか確認してください(タスクトレイの Ollama、または ollama serve)。");
+  }
+  return lines.join("\n");
+}

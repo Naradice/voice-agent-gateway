@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { CPU_OLLAMA_PORT, cpuModelName, cpuModelfile, cpuOnlyEnv, detectGpuInLog, deviceVerdict, portOf } from "../src/local/cpu.ts";
+import { CPU_OLLAMA_PORT, cpuModelName, cpuModelfile, cpuOnlyEnv, detectGpuInLog, deviceVerdict, explainConnectionError, portOf } from "../src/local/cpu.ts";
 
 test("cpuOnlyEnv hides every GPU, binds to localhost only, and limits memory use; it keeps the rest of the environment", () => {
   const env = cpuOnlyEnv({ PATH: "/bin", OLLAMA_HOST: "0.0.0.0:11434", CUDA_VISIBLE_DEVICES: "0" }, 11435);
@@ -60,4 +60,22 @@ test("the CPU-only derived model is named predictably and offloads zero layers t
   assert.equal(cpuModelName("library/qwen3:8b"), "library-qwen3-8b-cpu");
   assert.equal(cpuModelfile("qwen3:4b"), "FROM qwen3:4b\nPARAMETER num_gpu 0\nPARAMETER num_ctx 4096\n");
   assert.match(cpuModelfile("qwen3-4b-cpu", 2048), /^FROM qwen3-4b\n.*num_ctx 2048/s, "派生モデルから更に派生しない");
+});
+
+test("explainConnectionError turns a refused connection into advice; other errors are left alone", () => {
+  const refused = Object.assign(new TypeError("fetch failed"), { cause: { code: "ECONNREFUSED" } });
+
+  const onCpuInstance = explainConnectionError(refused, "http://127.0.0.1:11435/v1")!;
+  assert.match(onCpuInstance, /127\.0\.0\.1:11435/);
+  assert.match(onCpuInstance, /ECONNREFUSED/);
+  assert.match(onCpuInstance, /11434/, "普段使いの Ollama に切り替える案内がある");
+  assert.match(onCpuInstance, /npm run ollama:cpu/);
+
+  const onDefault = explainConnectionError(refused, "http://127.0.0.1:11434/v1")!;
+  assert.match(onDefault, /Ollama が起動しているか/);
+  assert.ok(!/ollama:cpu/.test(onDefault), "11434 では別インスタンスの案内は出さない");
+
+  assert.ok(explainConnectionError(new TypeError("fetch failed"), "http://x:1/v1"), "原因コードがなくても fetch failed は接続失敗");
+  assert.equal(explainConnectionError(new Error("HTTP 500 from Ollama")), undefined);
+  assert.equal(explainConnectionError("something else"), undefined);
 });

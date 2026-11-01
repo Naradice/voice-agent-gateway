@@ -2,7 +2,7 @@
 //   npm run llm -- status | warm | unload
 // 実験の前に `unload` すると GPU が空く。環境変数: LOCAL_MODEL(既定 qwen3:14b) OLLAMA_BASE_URL
 import { OllamaLifecycle } from "../src/index.ts";
-import { deviceVerdict, type Device } from "../src/local/cpu.ts";
+import { deviceVerdict, explainConnectionError, type Device } from "../src/local/cpu.ts";
 import { loadDotEnv } from "../src/env.ts";
 
 loadDotEnv();
@@ -19,13 +19,20 @@ const show = (s: Awaited<ReturnType<OllamaLifecycle["status"]>>) => {
   if (s.loaded && s.expiresAt) console.log(`  解放予定: ${s.expiresAt}`);
 };
 
-if (cmd === "warm") {
-  const r = await lifecycle.warm();
-  console.log(`読み込み完了 ${r.loadMs}ms`);
-  show(r.status);
-} else if (cmd === "unload") {
-  await lifecycle.unload();
-  show(await lifecycle.status());
-} else {
-  show(await lifecycle.status());
+try {
+  if (cmd === "warm") {
+    const r = await lifecycle.warm();
+    console.log(`読み込み完了 ${r.loadMs}ms`);
+    show(r.status);
+  } else if (cmd === "unload") {
+    await lifecycle.unload();
+    show(await lifecycle.status());
+  } else {
+    show(await lifecycle.status());
+  }
+} catch (e) {
+  const friendly = explainConnectionError(e, process.env.OLLAMA_BASE_URL);
+  if (!friendly) throw e;
+  console.error(friendly);
+  process.exit(1);
 }
