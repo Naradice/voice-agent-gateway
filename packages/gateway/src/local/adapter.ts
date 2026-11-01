@@ -13,6 +13,12 @@ export interface LocalLLMAdapterOptions extends ConversationOptions {
   apiKey?: string;
   /** 読み上げ向けの指示 */
   instructions?: string;
+  /** 利用者についての固定情報(居住地など)。毎回言わなくてよいよう、システム指示に加える。例: 「東京都世田谷区に住んでいる」 */
+  userProfile?: string;
+  /** 「現在日時」の表示に使うタイムゾーン(IANA 名。例 Asia/Tokyo)。未指定ならこの PC の設定 */
+  timeZone?: string;
+  /** 現在時刻の供給元(テスト用) */
+  now?: () => Date;
   /** 追加の生成パラメータ(temperature 等)をそのまま本文に加える */
   extraBody?: Record<string, unknown>;
   /**
@@ -71,8 +77,18 @@ export class LocalLLMAdapter extends ConversationAdapter {
     return { "content-type": "application/json", ...(this.o.apiKey ? { authorization: `Bearer ${this.o.apiKey}` } : {}) };
   }
 
+  /** モデルは今日の日付を知らないので、毎回の要求で現在日時と利用者情報を渡す。 */
+  private facts(): string {
+    const now = (this.o.now ?? (() => new Date()))();
+    let when: string;
+    try {
+      when = new Intl.DateTimeFormat("ja-JP", { dateStyle: "full", timeStyle: "short", ...(this.o.timeZone ? { timeZone: this.o.timeZone } : {}) }).format(now);
+    } catch { when = now.toISOString(); } // タイムゾーン名が不正なら UTC の ISO 形式
+    return [`現在の日時: ${when}`, this.o.userProfile ? `利用者について: ${this.o.userProfile}` : ""].filter(Boolean).join("\n");
+  }
+
   protected body(history: ChatMessage[], context?: string) {
-    const system = [this.o.instructions, context].filter(Boolean).join("\n\n");
+    const system = [this.o.instructions, this.facts(), context].filter(Boolean).join("\n\n");
     return {
       model: this.o.model,
       messages: [...(system ? [{ role: "system", content: system }] : []), ...this.withNoThink(history)],

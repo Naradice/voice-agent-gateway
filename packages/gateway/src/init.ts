@@ -27,6 +27,8 @@ export function buildEnvFile(o: EnvFileOptions): string {
     "LOCAL_MAX_TOKENS=300       # 返答を短く打ち切る(音声向け)",
     "VAG_KEEP_ALIVE=10m         # 最後の使用からこの時間でモデルを解放する(メモリを空ける)",
     "# GPU を使う場合(VRAM に余裕があるとき): 上の OLLAMA_BASE_URL〜LOCAL_MAX_TOKENS をコメントアウトし、LOCAL_MODEL=qwen3:14b にする",
+    "# LOCAL_USER_PROFILE=東京都世田谷区に住んでいる   # 居住地など、毎回言わなくてよいように会話に加える",
+    "# LOCAL_TIMEZONE=Asia/Tokyo                       # 現在日時の表示に使う。未指定なら PC の設定",
     "# LOCAL_CONTEXT=16384      # Ollama に設定した文脈長。入力が迫ると警告する",
     "",
     "# 最新情報の検索(任意)",

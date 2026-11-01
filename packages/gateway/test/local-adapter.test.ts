@@ -14,7 +14,7 @@ function setup(handler: (body: any, init: RequestInit) => Response | Promise<Res
   const calls: { url: string; headers: Record<string, string>; body: any }[] = [];
   const store = new Store();
   const adapter = new LocalLLMAdapter({
-    store, model: "llama-test", instructions: "be brief", ...extra,
+    store, model: "llama-test", instructions: "be brief", now: () => new Date("2026-11-01T03:00:00Z"), timeZone: "Asia/Tokyo", ...extra,
     fetch: (async (url: string, init: RequestInit) => {
       const body = JSON.parse(String(init.body));
       calls.push({ url, headers: init.headers as Record<string, string>, body });
@@ -40,7 +40,7 @@ test("streams chat-completions deltas to Ollama's default endpoint, with no auth
   assert.deepEqual(events.map((e) => e.type), ["turn.started", "message.delta", "message.delta", "message.completed", "turn.completed"]);
   assert.equal(calls[0].url, "http://127.0.0.1:11434/v1/chat/completions");
   assert.equal(calls[0].headers.authorization, undefined);
-  assert.deepEqual(calls[0].body.messages, [{ role: "system", content: "be brief" }, { role: "user", content: "やあ" }], "Qwen3 以外には /no_think を付けない");
+  assert.deepEqual(calls[0].body.messages, [{ role: "system", content: "be brief\n\n現在の日時: 2026年11月1日日曜日 12:00" }, { role: "user", content: "やあ" }], "Qwen3 以外には /no_think を付けない");
   assert.equal(calls[0].body.stream, true);
   assert.equal(calls[0].body.reasoning_effort, "none");
   assert.deepEqual(store.messages(s.id).map((m) => m.text), ["やあ", "こんにちは"]);
@@ -215,7 +215,7 @@ test("for Qwen3, /no_think goes at the end of the latest user message only in th
     await done;
   }
   const msgs = calls[1].body.messages;
-  assert.equal(msgs[0].content, "be brief", "システム指示には入れない");
+  assert.equal(msgs[0].content, "be brief\n\n現在の日時: 2026年11月1日日曜日 12:00", "システム指示には入れない(/no_think は含まない)");
   assert.equal(msgs.at(-1).content, "二つ目\n/no_think", "最後の発話の末尾");
   assert.equal(msgs.find((m: any) => m.content.startsWith("一つ目")).content, "一つ目", "前の発話には付けない");
   assert.deepEqual(store.messages(s.id).map((m) => m.text), ["一つ目", "A", "二つ目", "A"], "保存される履歴には入らない");
@@ -266,4 +266,20 @@ test("text held back at the end of the stream (a possible partial tag) is still 
   const events = await done;
   assert.equal((events.at(-1) as any).status, "ok", "空の応答として扱わない");
   assert.deepEqual(store.messages(s.id).map((m) => m.text), ["やあ", "<"]);
+});
+
+test("system prompt carries the current date and the user profile on every request", async () => {
+  const { adapter, store, calls } = setup(() => streamOf(chunks(["はい"])), {
+    userProfile: "東京都世田谷区に住んでいる",
+  });
+  const s = await adapter.createSession();
+  const sessionId = s.id;
+  const done = untilCompleted(adapter, sessionId);
+  await adapter.sendMessage(sessionId, "今日は何日");
+  await done;
+  const system = calls[0].body.messages[0].content as string;
+  assert.match(system, /be brief/);
+  assert.match(system, /2026年11月1日/);
+  assert.match(system, /12:00/, "UTC 03:00 は東京で 12:00");
+  assert.match(system, /利用者について: 東京都世田谷区に住んでいる/);
 });

@@ -5,7 +5,7 @@
 //   VAG_PORT      既定 8787
 //   VAG_DB        SQLite のパス。既定 data/gateway.sqlite
 //   VAG_CODEX     1 で Codex Adapter を有効にする
-//   LOCAL_MODEL(既定 qwen3:14b) OLLAMA_BASE_URL LOCAL_CONTEXT VAG_KEEP_ALIVE(既定 10m)
+//   LOCAL_MODEL(既定 qwen3:14b) OLLAMA_BASE_URL LOCAL_CONTEXT LOCAL_USER_PROFILE LOCAL_TIMEZONE VAG_KEEP_ALIVE(既定 10m)
 //   SEARCH_PROVIDER=brave|searxng, BRAVE_API_KEY / SEARXNG_URL
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
@@ -68,6 +68,8 @@ registry.register(new LocalLLMAdapter({
   // 思考を止める指定を送るか。未指定なら自動(instruct を名前に含むモデルには送らない)。LOCAL_SUPPRESS_THINKING=0 で送らない、=1 で必ず送る。
   ...(env.LOCAL_SUPPRESS_THINKING === "0" ? { suppressThinking: false } : env.LOCAL_SUPPRESS_THINKING === "1" ? { suppressThinking: true } : {}),
   ...(maxTokens ? { extraBody: { max_tokens: maxTokens } } : {}),
+  userProfile: env.LOCAL_USER_PROFILE,
+  timeZone: env.LOCAL_TIMEZONE,
   instructions: "あなたは音声アシスタントです。短く、話し言葉で答えてください。コードや長いURLは読み上げません。",
   lifecycle: new OllamaLifecycle({ model, baseUrl: ollama, keepAlive: env.VAG_KEEP_ALIVE ?? "10m" }),
   grounding: provider && createGrounding({
