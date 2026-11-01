@@ -35,7 +35,7 @@ class VolumeKeyService : AccessibilityService() {
 
     companion object {
         /** サービスが許可されて動いているか(画面の表示用)。 */
-        @Volatile var _connected.value = false
-            private set
+        private val _connected = kotlinx.coroutines.flow.MutableStateFlow(false)
+        val connected: kotlinx.coroutines.flow.StateFlow<Boolean> = _connected
     }
 }
